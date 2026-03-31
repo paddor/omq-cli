@@ -267,10 +267,88 @@ module OMQ
     end
 
 
+    def run(argv = ARGV)
+      case argv.first
+      when "keygen"
+        argv.shift
+        run_keygen(argv)
+      else
+        run_socket(argv)
+      end
+    end
+
+
+    # Generates a persistent CURVE keypair and prints it as
+    # Z85-encoded env vars.
+    #
+    def run_keygen(argv)
+      crypto_name = nil
+      verbose     = false
+      while (arg = argv.shift)
+        case arg
+        when "--curve-crypto"
+          crypto_name = argv.shift
+        when "-v", "--verbose"
+          verbose = true
+        when "-h", "--help"
+          puts "Usage: omq keygen [--curve-crypto rbnacl|nuckle] [-v]\n\n" \
+               "Generates a CURVE keypair for persistent server identity.\n" \
+               "Output: Z85-encoded env vars for use with --curve-server."
+          exit
+        else
+          abort "omq keygen: unknown option: #{arg}"
+        end
+      end
+      crypto_name ||= ENV["OMQ_CURVE_CRYPTO"]
+
+      crypto = load_curve_crypto(crypto_name, verbose: verbose)
+      require "protocol/zmtp/mechanism/curve"
+      require "protocol/zmtp/z85"
+
+      key = crypto::PrivateKey.generate
+      puts "OMQ_SERVER_PUBLIC='#{Protocol::ZMTP::Z85.encode(key.public_key.to_s)}'"
+      puts "OMQ_SERVER_SECRET='#{Protocol::ZMTP::Z85.encode(key.to_s)}'"
+    end
+
+
+    # Loads the named NaCl-compatible crypto backend.
+    #
+    # @param name [String, nil] "rbnacl", "nuckle", or nil (auto-detect rbnacl)
+    # @param verbose [Boolean] log which backend was loaded to stderr
+    # @return [Module] RbNaCl or Nuckle
+    #
+    def load_curve_crypto(name, verbose: false)
+      crypto = case name&.downcase
+      when "rbnacl"
+        require "rbnacl"
+        RbNaCl
+      when "nuckle"
+        require "nuckle"
+        Nuckle
+      when nil
+        begin
+          require "rbnacl"; RbNaCl
+        rescue LoadError
+          abort "CURVE requires a crypto backend. Install rbnacl (recommended):\n" \
+                "  gem install rbnacl    # requires system libsodium\n" \
+                "Or use pure Ruby (not audited):\n" \
+                "  --curve-crypto nuckle\n" \
+                "  # or: OMQ_CURVE_CRYPTO=nuckle"
+        end
+      else
+        abort "Unknown CURVE crypto backend: #{name}. Use 'rbnacl' or 'nuckle'."
+      end
+      $stderr.puts "omq: CURVE crypto backend: #{crypto.name}" if verbose
+      crypto
+    rescue LoadError
+      abort "Could not load #{name} gem: gem install #{name}"
+    end
+
+
     # Parses CLI arguments, validates options, and runs the main
     # event loop inside an Async reactor.
     #
-    def run(argv = ARGV)
+    def run_socket(argv)
       config = build_config(argv)
 
       require "omq"

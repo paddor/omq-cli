@@ -338,6 +338,20 @@ omq push -c tcp://remote:5557 -z < data.txt
 omq pull -b tcp://:5557 -z
 ```
 
+## Key generation
+
+Generate a persistent CURVE keypair:
+
+```sh
+omq keygen
+# OMQ_SERVER_PUBLIC='...'
+# OMQ_SERVER_SECRET='...'
+
+omq keygen --curve-crypto nuckle   # pure Ruby backend
+```
+
+Export the vars, then use `--curve-server` (server) or `--curve-server-key` (client).
+
 ## CURVE encryption
 
 End-to-end encryption using CurveZMQ. Requires a crypto backend:

@@ -157,7 +157,7 @@ module OMQ
 
         return unless server_key_z85 || server_mode
 
-        crypto = load_curve_crypto(config.curve_crypto || ENV["OMQ_CURVE_CRYPTO"])
+        crypto = CLI.load_curve_crypto(config.curve_crypto || ENV["OMQ_CURVE_CRYPTO"], verbose: config.verbose)
         require "protocol/zmtp/mechanism/curve"
 
         if server_key_z85
@@ -183,27 +183,6 @@ module OMQ
         end
       end
 
-
-      def load_curve_crypto(name)
-        case name&.downcase
-        when "rbnacl" then require "rbnacl"; RbNaCl
-        when "nuckle" then require "nuckle"; Nuckle
-        when nil
-          begin
-            require "rbnacl"; RbNaCl
-          rescue LoadError
-            abort "CURVE requires a crypto backend. Install rbnacl (recommended):\n" \
-                  "  gem install rbnacl    # requires system libsodium\n" \
-                  "Or use pure Ruby (not audited):\n" \
-                  "  --curve-crypto nuckle\n" \
-                  "  # or: OMQ_CURVE_CRYPTO=nuckle"
-          end
-        else
-          abort "Unknown CURVE crypto backend: #{name}. Use 'rbnacl' or 'nuckle'."
-        end
-      rescue LoadError
-        abort "Could not load #{name} gem: gem install #{name}"
-      end
 
       # ── Shared loop bodies ──────────────────────────────────────────
 

@@ -1154,42 +1154,30 @@ require "nuckle"
 require "protocol/zmtp/mechanism/curve"
 
 describe "load_curve_crypto" do
-  # Use a bare BaseRunner instance to test the private method.
-  def loader
-    runner = OMQ::CLI::BaseRunner.allocate
-    runner.define_singleton_method(:load_public) { |name| load_curve_crypto(name) }
-    runner
-  end
-
   if HAS_RBNACL
     it "loads rbnacl when explicitly requested" do
-      result = loader.load_public("rbnacl")
-      assert_equal "RbNaCl", result.name
+      assert_equal "RbNaCl", OMQ::CLI.load_curve_crypto("rbnacl").name
     end
 
     it "is case-insensitive for rbnacl" do
-      result = loader.load_public("RbNaCl")
-      assert_equal "RbNaCl", result.name
+      assert_equal "RbNaCl", OMQ::CLI.load_curve_crypto("RbNaCl").name
     end
 
     it "defaults to rbnacl when name is nil and rbnacl is available" do
-      result = loader.load_public(nil)
-      assert_equal "RbNaCl", result.name
+      assert_equal "RbNaCl", OMQ::CLI.load_curve_crypto(nil).name
     end
   end
 
   it "loads nuckle when explicitly requested" do
-    result = loader.load_public("nuckle")
-    assert_equal "Nuckle", result.name
+    assert_equal "Nuckle", OMQ::CLI.load_curve_crypto("nuckle").name
   end
 
   it "is case-insensitive for nuckle" do
-    result = loader.load_public("NUCKLE")
-    assert_equal "Nuckle", result.name
+    assert_equal "Nuckle", OMQ::CLI.load_curve_crypto("NUCKLE").name
   end
 
   it "aborts on unknown backend" do
-    assert_raises(SystemExit) { quietly { loader.load_public("bogus") } }
+    assert_raises(SystemExit) { quietly { OMQ::CLI.load_curve_crypto("bogus") } }
   end
 end
 
@@ -1286,5 +1274,48 @@ describe "setup_curve" do
     runner.send(:setup_curve)
     refute_kind_of Protocol::ZMTP::Mechanism::Curve, runner.sock.mechanism
     runner.sock.close rescue nil
+  end
+end
+
+
+describe "omq keygen" do
+  it "generates Z85 keypair to stdout" do
+    out = capture_io { OMQ::CLI.run_keygen(["--curve-crypto", "nuckle"]) }.first
+    assert_match(/^OMQ_SERVER_PUBLIC='/, out)
+    assert_match(/^OMQ_SERVER_SECRET='/, out)
+  end
+
+  it "generates valid 40-char Z85 keys that decode to 32 bytes" do
+    out = capture_io { OMQ::CLI.run_keygen(["--curve-crypto", "nuckle"]) }.first
+    pub = out[/OMQ_SERVER_PUBLIC='([^']+)'/, 1]
+    sec = out[/OMQ_SERVER_SECRET='([^']+)'/, 1]
+    assert_equal 40, pub.length
+    assert_equal 40, sec.length
+    assert_equal 32, Protocol::ZMTP::Z85.decode(pub).bytesize
+    assert_equal 32, Protocol::ZMTP::Z85.decode(sec).bytesize
+  end
+
+  if HAS_RBNACL
+    it "respects --curve-crypto rbnacl" do
+      out = capture_io { OMQ::CLI.run_keygen(["--curve-crypto", "rbnacl"]) }.first
+      assert_includes out, "OMQ_SERVER_PUBLIC="
+    end
+  end
+
+  it "respects OMQ_CURVE_CRYPTO env var" do
+    old = ENV["OMQ_CURVE_CRYPTO"]
+    ENV["OMQ_CURVE_CRYPTO"] = "nuckle"
+    out = capture_io { OMQ::CLI.run_keygen([]) }.first
+    assert_includes out, "OMQ_SERVER_PUBLIC="
+  ensure
+    if old then ENV["OMQ_CURVE_CRYPTO"] = old else ENV.delete("OMQ_CURVE_CRYPTO") end
+  end
+
+  it "prints help with --help" do
+    assert_raises(SystemExit) { capture_io { OMQ::CLI.run_keygen(["--help"]) } }
+  end
+
+  it "aborts on unknown option" do
+    assert_raises(SystemExit) { quietly { OMQ::CLI.run_keygen(["--bogus"]) } }
   end
 end
