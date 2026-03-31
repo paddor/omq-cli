@@ -532,7 +532,15 @@ module OMQ
         o.on("-v", "--verbose",     "Print connection events to stderr") { opts[:verbose] = true }
         o.on("-q", "--quiet",       "Suppress message output")          { opts[:quiet] = true }
         o.on(      "--transient",   "Exit when all peers disconnect")   { opts[:transient] = true }
-        o.on("-V", "--version")     { require "omq"; puts "omq-cli #{OMQ::CLI::VERSION} (omq #{OMQ::VERSION})"; exit }
+        o.on("-V", "--version") {
+          if ENV["OMQ_DEV"]
+            require_relative "../../../omq/lib/omq/version"
+          else
+            require "omq/version"
+          end
+          puts "omq-cli #{OMQ::CLI::VERSION} (omq #{OMQ::VERSION})"
+          exit
+        }
         o.on("-h")                  { puts o; exit }
         o.on(      "--help")        { page "#{o}\n#{EXAMPLES}"; exit }
         o.on(      "--examples")    { page EXAMPLES; exit }

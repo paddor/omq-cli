@@ -1,8 +1,6 @@
 # Changelog
 
-## 0.1.0 — 2026-03-31
-
-Initial release — CLI extracted from the omq gem (v0.8.0).
+## 0.2.0 — 2026-03-31
 
 ### Added
 
@@ -19,6 +17,9 @@ Initial release — CLI extracted from the omq gem (v0.8.0).
 
 - **CURVE uses protocol-zmtp** — replaces the old omq-curve gem with
   `Protocol::ZMTP::Mechanism::Curve` and a pluggable `crypto:` backend.
-- **`--version` shows both versions** — `omq-cli 0.1.0 (omq 0.9.0)`.
 - **`load_curve_crypto` is a CLI module method** — shared between
   `omq keygen` and socket runners.
+
+## 0.1.0 — 2026-03-31
+
+Initial release — CLI extracted from the omq gem (v0.8.0).
