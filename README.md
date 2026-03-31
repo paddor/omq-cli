@@ -4,7 +4,8 @@
 [![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)](LICENSE)
 [![Ruby](https://img.shields.io/badge/Ruby-%3E%3D%203.3-CC342D?logo=ruby&logoColor=white)](https://www.ruby-lang.org)
 
-Command-line tool for sending and receiving ZeroMQ messages on any socket type. Like `nngcat` from libnng, but with Ruby eval, Ractor parallelism, and message handlers.
+Command-line tool for sending and receiving ZeroMQ messages on any socket type.
+Like `nngcat` from libnng, but with Ruby eval, Ractor parallelism, and message handlers.
 
 Built on [omq](https://github.com/zeromq/omq) — pure Ruby ZeroMQ, no C dependencies.
 
@@ -46,7 +47,8 @@ omq pull -b ipc:///tmp/feed.sock     # IPC (unix socket)
 omq push -c ipc://@abstract          # IPC (abstract namespace, Linux)
 ```
 
-Multiple endpoints are allowed — `omq pull -b tcp://:5557 -b tcp://:5558` binds both. Pipe requires exactly two (`-c` for pull-side, `-c` for push-side).
+Multiple endpoints are allowed — `omq pull -b tcp://:5557 -b tcp://:5558` binds both.
+Pipe takes two positional endpoints (input, output) or uses `--in`/`--out` for multiple per side.
 
 ## Socket types
 
@@ -94,7 +96,8 @@ echo "hello" | omq req -c tcp://localhost:5555
 | `dealer` | Like `pair` but round-robin send to multiple peers |
 | `channel` | Like `pair` (draft, single-frame) |
 
-These spawn two concurrent tasks: a receiver (prints incoming) and a sender (reads stdin). `-e` transforms incoming, `-E` transforms outgoing.
+These spawn two concurrent tasks: a receiver (prints incoming) and a sender (reads stdin).
+`-e` transforms incoming, `-E` transforms outgoing.
 
 ### Routing sockets
 
@@ -128,7 +131,8 @@ omq pipe -c ipc://@work -c ipc://@sink -e '$F.map(&:upcase)'
 omq pipe -c ipc://@work -c ipc://@sink -P 4 -r./fib.rb -e 'fib(Integer($_)).to_s'
 ```
 
-The first endpoint is the pull-side (input), the second is the push-side (output). Both must use `-c`.
+The first endpoint is the pull-side (input), the second is the push-side (output).
+Both must use `-c`.
 
 ## Eval: -e and -E
 
@@ -298,7 +302,8 @@ OMQ.outgoing { |msg| [*msg, Time.now.iso8601] }
 | `--msgpack` | MessagePack arrays (binary stream) |
 | `-M` / `--marshal` | Ruby Marshal (binary stream of `Array<String>` objects) |
 
-Multipart messages: in ASCII/quoted mode, frames are tab-separated. In JSONL mode, each message is a JSON array.
+Multipart messages: in ASCII/quoted mode, frames are tab-separated. In JSONL mode,
+each message is a JSON array.
 
 ```sh
 # send multipart via tabs
@@ -432,7 +437,8 @@ omq pipe -c ipc://@work -c ipc://@sink --transient -e '$F.map(&:upcase)'
 
 ### Multi-peer pipe with `--in`/`--out`
 
-Use `--in` and `--out` to attach multiple endpoints per side. These are modal switches — subsequent `-b`/`-c` flags attach to the current side:
+Use `--in` and `--out` to attach multiple endpoints per side. These are modal switches — subsequent
+`-b`/`-c` flags attach to the current side:
 
 ```sh
 # fan-in: 2 producers → 1 consumer
@@ -448,9 +454,8 @@ omq pipe --in -b tcp://:5555 -b tcp://:5556 --out -c tcp://sink:5557 -e '$F'
 omq pipe --in -c ipc://@a -c ipc://@b --out -c ipc://@sink -P 4 -e '$F'
 ```
 
-`-P`/`--parallel` requires all endpoints to be `--connect`. In parallel mode, each Ractor worker gets its own PULL/PUSH pair connecting to all endpoints.
-
-Note: in Ractor workers, use `__F` instead of `$F` (global variables aren't shared across Ractors).
+`-P`/`--parallel` requires all endpoints to be `--connect`. In parallel mode, each Ractor worker
+gets its own PULL/PUSH pair connecting to all endpoints.
 
 ## Transient mode
 
