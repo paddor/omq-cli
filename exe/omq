@@ -1,0 +1,6 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+Warning[:experimental] = false
+
+require "omq/cli"
+OMQ::CLI.run
