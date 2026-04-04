@@ -352,6 +352,7 @@ module OMQ
       config = build_config(argv)
 
       require "omq"
+      require "omq/draft/all"
       require "async"
       require "json"
       require "console"
@@ -363,9 +364,21 @@ module OMQ
 
       Console.logger = Console::Logger.new(Console::Output::Null.new) unless config.verbose
 
+      if config.type_name.nil?
+        Object.include(OMQ) unless Object.include?(OMQ)
+        Async do
+          config.scripts.each { |s| load_script(s) }
+        rescue => e
+          $stderr.puts "omq: #{e.message}"
+          exit 1
+        end
+        return
+      end
+
       runner_class, socket_sym = RUNNER_MAP.fetch(config.type_name)
 
       Async do |task|
+        config.scripts.each { |s| load_script(s) }
         runner = if socket_sym
                    runner_class.new(config, OMQ.const_get(socket_sym))
                  else
@@ -383,6 +396,16 @@ module OMQ
         exit 1
       end
     end
+
+
+    def load_script(s)
+      if s == :stdin
+        eval($stdin.read, TOPLEVEL_BINDING, "(stdin)", 1) # rubocop:disable Security/Eval
+      else
+        require s
+      end
+    end
+    private_class_method :load_script
 
 
     # Builds a frozen Config from command-line arguments.
@@ -403,6 +426,7 @@ module OMQ
     #
     def parse_options(argv)
       opts = {
+        type_name:        nil,
         endpoints:        [],
         connects:         [],
         binds:            [],
@@ -432,6 +456,8 @@ module OMQ
         verbose:          false,
         quiet:            false,
         echo:             false,
+        scripts:          [],
+        recv_maxsz:       nil,
         curve_server:     false,
         curve_server_key: nil,
         curve_crypto:     nil,
@@ -503,6 +529,8 @@ module OMQ
         }
         o.on("--heartbeat-ivl SECS", Float, "ZMTP heartbeat interval (detects dead peers)") { |v| opts[:heartbeat_ivl] = v }
 
+        o.on("--recv-maxsz COUNT", Integer, "Max inbound message size in bytes (larger messages dropped)") { |v| opts[:recv_maxsz] = v }
+
         o.separator "\nDelivery:"
         o.on("--conflate", "Keep only last message per subscriber (PUB/RADIO)") { opts[:conflate] = true }
 
@@ -512,9 +540,9 @@ module OMQ
         o.separator "\nProcessing (-e = incoming, -E = outgoing):"
         o.on("-e", "--recv-eval EXPR", "Eval Ruby for each incoming message ($F = parts)") { |v| opts[:recv_expr] = v }
         o.on("-E", "--send-eval EXPR", "Eval Ruby for each outgoing message ($F = parts)") { |v| opts[:send_expr] = v }
-        o.on("-r", "--require LIB",  "Require lib/file; scripts can register OMQ.outgoing/incoming") { |v|
+        o.on("-r", "--require LIB",  "Require lib/file in Async context; use '-' for stdin. Scripts can register OMQ.outgoing/incoming") { |v|
           require "omq" unless defined?(OMQ::VERSION)
-          v.start_with?("./", "../") ? require(File.expand_path(v)) : require(v)
+          opts[:scripts] << (v == "-" ? :stdin : (v.start_with?("./", "../") ? File.expand_path(v) : v))
         }
         o.on("-P", "--parallel [N]", Integer, "Parallel Ractor workers (pipe only, default: nproc)") { |v|
           require "etc"
@@ -555,12 +583,14 @@ module OMQ
       end
 
       type_name = argv.shift
-      abort parser.to_s unless type_name
-      unless SOCKET_TYPE_NAMES.include?(type_name.downcase)
+      if type_name.nil?
+        abort parser.to_s if opts[:scripts].empty?
+        # bare script mode — type_name stays nil
+      elsif !SOCKET_TYPE_NAMES.include?(type_name.downcase)
         abort "Unknown socket type: #{type_name}. Known: #{SOCKET_TYPE_NAMES.join(', ')}"
+      else
+        opts[:type_name] = type_name.downcase
       end
-
-      opts[:type_name] = type_name.downcase
 
       normalize    = ->(url) { url.sub(%r{\Atcp://\*:}, "tcp://0.0.0.0:").sub(%r{\Atcp://:}, "tcp://localhost:") }
       normalize_ep = ->(ep) { Endpoint.new(normalize.call(ep.url), ep.bind?) }
@@ -577,6 +607,10 @@ module OMQ
     # Validates option combinations.
     #
     def validate!(opts)
+      return if opts[:type_name].nil?  # bare script mode
+
+      abort "-r- (stdin script) and -F- (stdin data) cannot both be used" if opts[:scripts]&.include?(:stdin) && opts[:file] == "-"
+
       type_name = opts[:type_name]
 
       if type_name == "pipe"

@@ -19,7 +19,7 @@ module OMQ
           parts.map { |p| p.b.dump[1..-2] }.join("\t") + "\n"
         when :raw
           parts.each_with_index.map do |p, i|
-            ZMTP::Codec::Frame.new(p.to_s, more: i < parts.size - 1).to_wire
+            Protocol::ZMTP::Codec::Frame.new(p.to_s, more: i < parts.size - 1).to_wire
           end.join
         when :jsonl
           JSON.generate(parts) + "\n"

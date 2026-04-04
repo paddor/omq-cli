@@ -2,6 +2,7 @@
 
 require "minitest/autorun"
 require "omq"
+require "omq/draft/all"
 require "async"
 
 require "console"

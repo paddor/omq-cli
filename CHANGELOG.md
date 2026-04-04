@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **`-r` defers loading to inside the Async reactor** — scripts now run
+  within the event loop and may use async APIs, OMQ sockets, etc.
+- **Bare script mode (`omq -r FILE`)** — omitting the socket type runs the
+  script directly inside `Async{}` with free reign. The `OMQ` module is
+  included into the top-level namespace so scripts can write `PUSH.new`
+  instead of `OMQ::PUSH.new`.
+- **`-r -` / `-r-`** — reads and evals the script from stdin, useful for
+  quick copy-paste invocations. Cannot be combined with `-F -`.
+- **`--recv-maxsz COUNT`** — sets the ZMQ `max_message_size` socket option;
+  the socket discards incoming messages exceeding `COUNT` bytes and drops
+  the peer connection before allocation.
+
+### Fixed
+
+- `Protocol::ZMTP::Codec::Frame` was referenced as bare `ZMTP::Codec::Frame`
+  in the formatter (`--raw` format). Fixed the constant path.
+
 ## 0.2.0 — 2026-03-31
 
 ### Added

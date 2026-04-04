@@ -53,6 +53,8 @@ def make_config(type_name:, **overrides)
     verbose:         false,
     quiet:           false,
     echo:            false,
+    scripts:         [],
+    recv_maxsz:      nil,
     curve_server:    false,
     curve_server_key: nil,
     curve_crypto:    nil,
@@ -598,6 +600,15 @@ describe "OMQ::CLI.validate!" do
     opts = pipe_opts(endpoints: eps)
     OMQ::CLI.validate!(opts)
   end
+
+  it "passes for bare script mode (type_name nil)" do
+    OMQ::CLI.validate!(type_name: nil, scripts: ["./myscript.rb"])
+  end
+
+  it "rejects -r- combined with -F-" do
+    opts = base_opts("pull").merge(scripts: [:stdin], file: "-")
+    assert_raises(SystemExit) { quietly { OMQ::CLI.validate!(opts) } }
+  end
 end
 
 # ── Option parsing ───────────────────────────────────────────────────
@@ -731,6 +742,37 @@ describe "OMQ::CLI.parse_options" do
   it "defaults curve_crypto to nil" do
     opts = OMQ::CLI.parse_options(["req", "-c", "tcp://x:1"])
     assert_nil opts[:curve_crypto]
+  end
+
+  it "parses -r as a deferred script path" do
+    opts = OMQ::CLI.parse_options(["-r", "./myscript.rb", "pull", "-b", "tcp://:1"])
+    assert_includes opts[:scripts], File.expand_path("./myscript.rb")
+    assert_nil opts[:send_expr]
+  end
+
+  it "parses -r- as a stdin script sentinel" do
+    opts = OMQ::CLI.parse_options(["-r-", "pull", "-b", "tcp://:1"])
+    assert_includes opts[:scripts], :stdin
+  end
+
+  it "parses bare script mode (no socket type) when -r is given" do
+    opts = OMQ::CLI.parse_options(["-r", "./myscript.rb"])
+    assert_nil opts[:type_name]
+    assert_includes opts[:scripts], File.expand_path("./myscript.rb")
+  end
+
+  it "exits with no arguments and no scripts" do
+    assert_raises(SystemExit) { quietly { OMQ::CLI.parse_options(["-v"]) } }
+  end
+
+  it "parses --recv-maxsz as an integer" do
+    opts = OMQ::CLI.parse_options(["pull", "-b", "tcp://:1", "--recv-maxsz", "65536"])
+    assert_equal 65536, opts[:recv_maxsz]
+  end
+
+  it "defaults recv_maxsz to nil" do
+    opts = OMQ::CLI.parse_options(["pull", "-b", "tcp://:1"])
+    assert_nil opts[:recv_maxsz]
   end
 end
 

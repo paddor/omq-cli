@@ -41,6 +41,8 @@ module OMQ
       :verbose,
       :quiet,
       :echo,
+      :scripts,
+      :recv_maxsz,
       :curve_server,
       :curve_server_key,
       :curve_crypto,
