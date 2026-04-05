@@ -609,6 +609,50 @@ describe "OMQ::CLI.validate!" do
     opts = base_opts("pull").merge(scripts: [:stdin], file: "-")
     assert_raises(SystemExit) { quietly { OMQ::CLI.validate!(opts) } }
   end
+
+  it "allows -P on pipe" do
+    eps = [OMQ::CLI::Endpoint.new("ipc://@a", false), OMQ::CLI::Endpoint.new("ipc://@b", false)]
+    opts = pipe_opts(endpoints: eps).merge(parallel: 4)
+    OMQ::CLI.validate!(opts)
+  end
+
+  it "rejects -P < 2" do
+    eps = [OMQ::CLI::Endpoint.new("ipc://@a", false), OMQ::CLI::Endpoint.new("ipc://@b", false)]
+    opts = pipe_opts(endpoints: eps).merge(parallel: 1)
+    assert_raises(SystemExit) { quietly { OMQ::CLI.validate!(opts) } }
+  end
+
+  it "allows -P on pull with --recv-eval and --connect" do
+    opts = base_opts("pull").merge(parallel: 4, recv_expr: "$F.map(&:upcase)")
+    OMQ::CLI.validate!(opts)
+  end
+
+  it "allows -P on sub with --recv-eval and --connect" do
+    opts = base_opts("sub").merge(parallel: 4, recv_expr: "$F")
+    OMQ::CLI.validate!(opts)
+  end
+
+  it "rejects -P on pull without --recv-eval" do
+    opts = base_opts("pull").merge(parallel: 4)
+    assert_raises(SystemExit) { quietly { OMQ::CLI.validate!(opts) } }
+  end
+
+  it "rejects -P on pull with --bind" do
+    opts = base_opts("pull").merge(
+      parallel:  4,
+      recv_expr: "$F",
+      connects:  [],
+      binds:     ["tcp://0.0.0.0:5555"],
+    )
+    assert_raises(SystemExit) { quietly { OMQ::CLI.validate!(opts) } }
+  end
+
+  it "rejects -P on send-only or bidirectional socket types" do
+    %w[push pub req rep dealer router pair].each do |type|
+      opts = base_opts(type).merge(parallel: 4)
+      assert_raises(SystemExit, "expected rejection for #{type}") { quietly { OMQ::CLI.validate!(opts) } }
+    end
+  end
 end
 
 # ── Option parsing ───────────────────────────────────────────────────

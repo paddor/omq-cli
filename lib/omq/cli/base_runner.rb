@@ -142,12 +142,17 @@ module OMQ
 
 
       def setup_subscriptions
+        setup_subscriptions_on(@sock)
+      end
+
+
+      def setup_subscriptions_on(sock)
         case config.type_name
         when "sub"
           prefixes = config.subscribes.empty? ? [""] : config.subscribes
-          prefixes.each { |p| @sock.subscribe(p) }
+          prefixes.each { |p| sock.subscribe(p) }
         when "dish"
-          config.joins.each { |g| @sock.join(g) }
+          config.joins.each { |g| sock.join(g) }
         end
       end
 
@@ -242,6 +247,112 @@ module OMQ
           i += 1
           break if n && n > 0 && i >= n
         end
+      end
+
+
+      # Parallel recv-eval: N OMQ::Ractor workers each with their own
+      # input socket connecting to the external endpoints, plus a shared
+      # inproc collector feeding results back to main for output().
+      #
+      def run_parallel_recv(task)
+        cfg       = config
+        n         = cfg.parallel
+        inproc    = "inproc://omq-out-#{object_id}"
+        recv_src  = cfg.recv_expr   # frozen String — shareable
+        fmt_sym   = cfg.format      # Symbol — shareable
+        fmt_compr = cfg.compress    # bool — shareable
+
+        # Create N input sockets in the main Async context
+        input_socks = n.times.map do
+          sock = create_socket
+          setup_subscriptions_on(sock)
+          cfg.connects.each { |url| sock.connect(url) }
+          sock
+        end
+
+        with_timeout(cfg.timeout) { input_socks.each { |s| s.peer_connected.wait } }
+
+        # Inproc collector: one bound PULL to receive all worker output
+        collector = OMQ::PULL.new(linger: cfg.linger)
+        collector.bind(inproc)
+
+        # N output sockets connecting to the collector
+        output_socks = n.times.map do
+          s = OMQ::PUSH.new(linger: cfg.linger)
+          s.connect(inproc)
+          s
+        end
+
+        workers = n.times.map do |i|
+          OMQ::Ractor.new(input_socks[i], output_socks[i], serialize: false) do |omq|
+            pull_p, push_p = omq.sockets
+
+            # Re-compile expression inside Ractor (Procs are not shareable)
+            begin_proc = end_proc = eval_proc = nil
+            if recv_src
+              extract = ->(src, kw) {
+                s2 = src.index(/#{kw}\s*\{/)
+                return [src, nil] unless s2
+                ci = src.index("{", s2); d = 1; j = ci + 1
+                while j < src.length && d > 0
+                  d += 1 if src[j] == "{"; d -= 1 if src[j] == "}"
+                  j += 1
+                end
+                [src[0...s2] + src[j..], src[(ci + 1)..(j - 2)]]
+              }
+              expr, begin_body = extract.(recv_src, "BEGIN")
+              expr, end_body   = extract.(expr,     "END")
+              begin_proc = eval("proc { #{begin_body} }") if begin_body
+              end_proc   = eval("proc { #{end_body} }")   if end_body
+              if expr && !expr.strip.empty?
+                ractor_expr = expr.gsub(/\$F\b/, "__F")
+                eval_proc   = eval("proc { |__F| $_ = __F&.first; #{ractor_expr} }")
+              end
+            end
+
+            formatter = OMQ::CLI::Formatter.new(fmt_sym, compress: fmt_compr)
+            begin_proc&.call
+
+            loop do
+              parts = pull_p.receive
+              break if parts.nil?
+              parts = formatter.decompress(parts)
+              if eval_proc
+                result = eval_proc.call(parts)
+                parts = case result
+                        when nil    then next
+                        when Array  then result
+                        when String then [result]
+                        else             [result.to_s]
+                        end
+              end
+              push_p << parts unless parts.empty?
+            end
+
+            end_proc&.call
+          end
+        end
+
+        # Collect loop: drain inproc PULL → output
+        n_count = cfg.count
+        i = 0
+        loop do
+          parts = collector.receive
+          break if parts.nil?
+          output(parts)
+          i += 1
+          break if n_count && n_count > 0 && i >= n_count
+        end
+
+        workers.each do |w|
+          w.value
+        rescue Ractor::RemoteError => e
+          $stderr.puts "omq: Ractor error: #{e.cause&.message || e.message}"
+        end
+      ensure
+        input_socks&.each(&:close)
+        output_socks&.each(&:close)
+        collector&.close
       end
 
 

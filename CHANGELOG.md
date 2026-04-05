@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+### Added (OMQ::Ractor integration)
+
+- **`-P` extended to recv-only socket types** (`pull`, `sub`, `gather`,
+  `dish`) when combined with `--recv-eval`. Each worker gets its own
+  socket connecting to the external endpoint; ZMQ distributes work
+  naturally. Results are collected via an inproc PULL back to main for
+  output. Requires all endpoints to use `--connect`.
+- **`omq-ractor` dependency** — `OMQ::Ractor` is now used for all
+  parallel worker management.
+
+### Changed
+
+- **`pipe -P` rewritten using `OMQ::Ractor`** — workers no longer
+  create their own Async reactor internally. Sockets are created and
+  peer-waited in the main Async context, then passed to
+  `OMQ::Ractor.new`; worker blocks contain only pure computation.
+  Semantics are unchanged.
+
+---
+
 ### Added
 
 - **`-r` defers loading to inside the Async reactor** — scripts now run

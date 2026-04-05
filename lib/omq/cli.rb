@@ -358,6 +358,7 @@ module OMQ
       require "console"
 
       validate_gems!(config)
+      require "omq/ractor" if config.parallel
 
       trap("INT")  { Process.exit!(0) }
       trap("TERM") { Process.exit!(0) }
@@ -544,7 +545,7 @@ module OMQ
           require "omq" unless defined?(OMQ::VERSION)
           opts[:scripts] << (v == "-" ? :stdin : (v.start_with?("./", "../") ? File.expand_path(v) : v))
         }
-        o.on("-P", "--parallel [N]", Integer, "Parallel Ractor workers (pipe only, default: nproc)") { |v|
+        o.on("-P", "--parallel [N]", Integer, "Parallel Ractor workers (default: nproc); for non-pipe requires --recv-eval") { |v|
           require "etc"
           opts[:parallel] = v || Etc.nprocessors
         }
@@ -638,10 +639,16 @@ module OMQ
       abort "--send-eval and --target are mutually exclusive"  if opts[:send_expr] && opts[:target]
 
       if opts[:parallel]
-        abort "-P/--parallel is only valid for pipe"                                    unless type_name == "pipe"
-        abort "-P/--parallel must be >= 2"                                              if opts[:parallel] < 2
-        all_pipe_eps = opts[:in_endpoints] + opts[:out_endpoints] + opts[:endpoints]
-        abort "-P/--parallel requires all endpoints to use --connect (not --bind)" if all_pipe_eps.any?(&:bind?)
+        abort "-P/--parallel must be >= 2" if opts[:parallel] < 2
+        if type_name == "pipe"
+          all_pipe_eps = opts[:in_endpoints] + opts[:out_endpoints] + opts[:endpoints]
+          abort "-P/--parallel requires all endpoints to use --connect (not --bind)" if all_pipe_eps.any?(&:bind?)
+        elsif RECV_ONLY.include?(type_name)
+          abort "-P/--parallel on #{type_name} requires --recv-eval (-e)" unless opts[:recv_expr]
+          abort "-P/--parallel requires all endpoints to use --connect (not --bind)" if opts[:binds].any?
+        else
+          abort "-P/--parallel is only valid for pipe or recv-only socket types (#{RECV_ONLY.join(', ')})"
+        end
       end
 
       (opts[:connects] + opts[:binds]).each do |url|

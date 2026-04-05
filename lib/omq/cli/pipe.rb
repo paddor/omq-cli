@@ -14,7 +14,7 @@ module OMQ
 
       def call(task)
         if config.parallel
-          run_parallel
+          run_parallel(task)
         else
           run_sequential(task)
         end
@@ -90,97 +90,101 @@ module OMQ
       end
 
 
-      def run_parallel
-        workers = config.parallel.times.map do
-          Ractor.new(config) do |cfg|
-            $VERBOSE = nil
-            Console.logger = Console::Logger.new(Console::Output::Null.new)
+      def run_parallel(task)
+        cfg = config
+        n   = cfg.parallel
+        in_eps, out_eps = resolve_endpoints
+        sock_opts = { linger: cfg.linger }
+        sock_opts[:recv_timeout] = cfg.timeout if cfg.timeout
+        sock_opts[:send_timeout] = cfg.timeout if cfg.timeout
 
-            Sync do |task|
-              # Parse BEGIN/END blocks and per-message expression
-              begin_proc = end_proc = eval_proc = nil
-              if cfg.recv_expr
-                extract = ->(src, kw) {
-                  s = src.index(/#{kw}\s*\{/)
-                  return [src, nil] unless s
-                  i = src.index("{", s); d = 1; j = i + 1
-                  while j < src.length && d > 0
-                    d += 1 if src[j] == "{"; d -= 1 if src[j] == "}"
-                    j += 1
-                  end
-                  [src[0...s] + src[j..], src[(i + 1)..(j - 2)]]
-                }
-                expr, begin_body = extract.(cfg.recv_expr, "BEGIN")
-                expr, end_body   = extract.(expr, "END")
-                begin_proc = eval("proc { #{begin_body} }") if begin_body
-                end_proc   = eval("proc { #{end_body} }")   if end_body
-                if expr && !expr.strip.empty?
-                  ractor_expr = expr.gsub(/\$F\b/, "__F")
-                  eval_proc   = eval("proc { |__F| $_ = __F&.first; #{ractor_expr} }")
-                end
+        # Create N PULL+PUSH socket pairs in the main Async context.
+        # Each worker gets its own pair; ZMQ distributes work across the
+        # N PULL connections and fans results in from the N PUSH connections.
+        pairs = n.times.map do
+          pull = OMQ::PULL.new(**sock_opts)
+          push = OMQ::PUSH.new(**sock_opts)
+          pull.reconnect_interval = cfg.reconnect_ivl if cfg.reconnect_ivl
+          push.reconnect_interval = cfg.reconnect_ivl if cfg.reconnect_ivl
+          pull.heartbeat_interval = cfg.heartbeat_ivl if cfg.heartbeat_ivl
+          push.heartbeat_interval = cfg.heartbeat_ivl if cfg.heartbeat_ivl
+          in_eps.each  { |ep| pull.connect(ep.url) }
+          out_eps.each { |ep| push.connect(ep.url) }
+          [pull, push]
+        end
+
+        # Wait for peer connections before spawning workers.
+        # peer_connected.wait requires the Async context (not available inside Ractors).
+        with_timeout(cfg.timeout) do
+          pairs.each do |pull, push|
+            push.peer_connected.wait
+            pull.peer_connected.wait
+          end
+        end
+
+        if cfg.transient
+          task.async do
+            pairs[0][0].all_peers_gone.wait
+            pairs.each { |pull, _| pull.reconnect_enabled = false; pull.close_read }
+          end
+        end
+
+        recv_src   = cfg.recv_expr
+        fmt_format = cfg.format
+        fmt_compr  = cfg.compress
+
+        workers = pairs.map do |pull, push|
+          OMQ::Ractor.new(pull, push, serialize: false) do |omq|
+            pull_p, push_p = omq.sockets
+
+            # Re-compile expression inside Ractor (Procs are not shareable)
+            extract = ->(src, kw) {
+              s = src.index(/#{kw}\s*\{/)
+              return [src, nil] unless s
+              ci = src.index("{", s); d = 1; j = ci + 1
+              while j < src.length && d > 0
+                d += 1 if src[j] == "{"; d -= 1 if src[j] == "}"
+                j += 1
               end
+              [src[0...s] + src[j..], src[(ci + 1)..(j - 2)]]
+            }
 
-              formatter = OMQ::CLI::Formatter.new(cfg.format, compress: cfg.compress)
-
-              pull = OMQ::PULL.new(linger: cfg.linger, recv_timeout: cfg.timeout)
-              push = OMQ::PUSH.new(linger: cfg.linger, send_timeout: cfg.timeout)
-              pull.reconnect_interval  = cfg.reconnect_ivl if cfg.reconnect_ivl
-              push.reconnect_interval  = cfg.reconnect_ivl if cfg.reconnect_ivl
-              pull.heartbeat_interval  = cfg.heartbeat_ivl if cfg.heartbeat_ivl
-              push.heartbeat_interval  = cfg.heartbeat_ivl if cfg.heartbeat_ivl
-              in_eps  = cfg.in_endpoints.any? ? cfg.in_endpoints : [cfg.endpoints[0]]
-              out_eps = cfg.out_endpoints.any? ? cfg.out_endpoints : [cfg.endpoints[1]]
-              in_eps.each  { |ep| pull.connect(ep.url) }
-              out_eps.each { |ep| push.connect(ep.url) }
-
-              if cfg.timeout
-                task.with_timeout(cfg.timeout) do
-                  push.peer_connected.wait
-                  pull.peer_connected.wait
-                end
-              else
-                push.peer_connected.wait
-                pull.peer_connected.wait
+            begin_proc = end_proc = eval_proc = nil
+            if recv_src
+              expr, begin_body = extract.(recv_src, "BEGIN")
+              expr, end_body   = extract.(expr,     "END")
+              begin_proc = eval("proc { #{begin_body} }") if begin_body
+              end_proc   = eval("proc { #{end_body} }")   if end_body
+              if expr && !expr.strip.empty?
+                ractor_expr = expr.gsub(/\$F\b/, "__F")
+                eval_proc   = eval("proc { |__F| $_ = __F&.first; #{ractor_expr} }")
               end
-
-              if cfg.transient
-                task.async do
-                  pull.all_peers_gone.wait
-                  pull.reconnect_enabled = false
-                  pull.close_read
-                end
-              end
-
-              begin_proc&.call
-
-              i = 0
-              loop do
-                parts = pull.receive
-                break if parts.nil?
-                parts = formatter.decompress(parts)
-                if eval_proc
-                  result = eval_proc.call(parts)
-                  parts = case result
-                          when nil    then nil
-                          when Array  then result
-                          when String then [result]
-                          else             [result.to_s]
-                          end
-                end
-                if parts && !parts.empty?
-                  push.send(formatter.compress(parts))
-                end
-                i += 1
-                break if cfg.count && cfg.count > 0 && i >= cfg.count
-              end
-
-              end_proc&.call
-            rescue Async::TimeoutError
-              # exit cleanly on timeout
-            ensure
-              pull&.close
-              push&.close
             end
+
+            formatter = OMQ::CLI::Formatter.new(fmt_format, compress: fmt_compr)
+            begin_proc&.call
+
+            n_count = cfg.count
+            i = 0
+            loop do
+              parts = pull_p.receive
+              break if parts.nil?
+              parts = formatter.decompress(parts)
+              if eval_proc
+                result = eval_proc.call(parts)
+                parts = case result
+                        when nil    then next
+                        when Array  then result
+                        when String then [result]
+                        else             [result.to_s]
+                        end
+              end
+              push_p << formatter.compress(parts) if parts && !parts.empty?
+              i += 1
+              break if n_count && n_count > 0 && i >= n_count
+            end
+
+            end_proc&.call
           end
         end
 
@@ -189,6 +193,8 @@ module OMQ
         rescue Ractor::RemoteError => e
           $stderr.puts "omq: Ractor error: #{e.cause&.message || e.message}"
         end
+      ensure
+        pairs&.each { |pull, push| pull&.close; push&.close }
       end
 
 

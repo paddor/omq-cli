@@ -24,5 +24,6 @@ Gem::Specification.new do |s|
   s.bindir     = "exe"
   s.executables = ["omq"]
 
-  s.add_dependency "omq", "~> 0.8"
+  s.add_dependency "omq",        "~> 0.8"
+  s.add_dependency "omq-ractor", "~> 0.1"
 end
