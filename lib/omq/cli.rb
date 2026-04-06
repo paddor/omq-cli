@@ -16,9 +16,7 @@ require_relative "cli/radio_dish"
 require_relative "cli/req_rep"
 require_relative "cli/pair"
 require_relative "cli/router_dealer"
-require_relative "cli/channel"
 require_relative "cli/client_server"
-require_relative "cli/peer"
 require_relative "cli/pipe"
 
 module OMQ
@@ -46,17 +44,17 @@ module OMQ
       "sub"     => [SubRunner,     :SUB],
       "req"     => [ReqRunner,     :REQ],
       "rep"     => [RepRunner,     :REP],
-      "dealer"  => [DealerRunner,  :DEALER],
+      "dealer"  => [PairRunner,    :DEALER],
       "router"  => [RouterRunner,  :ROUTER],
       "pair"    => [PairRunner,    :PAIR],
-      "client"  => [ClientRunner,  :CLIENT],
+      "client"  => [ReqRunner,     :CLIENT],
       "server"  => [ServerRunner,  :SERVER],
       "radio"   => [RadioRunner,   :RADIO],
       "dish"    => [DishRunner,    :DISH],
       "scatter" => [ScatterRunner, :SCATTER],
       "gather"  => [GatherRunner,  :GATHER],
-      "channel" => [ChannelRunner, :CHANNEL],
-      "peer"    => [PeerRunner,    :PEER],
+      "channel" => [PairRunner,    :CHANNEL],
+      "peer"    => [ServerRunner,  :PEER],
       "pipe"    => [PipeRunner,    nil],
     }.freeze
 

@@ -4,6 +4,12 @@
 
 ### Refactored
 
+- **Remove empty runner subclasses** — `DealerRunner`, `ChannelRunner`,
+  `ClientRunner`, and `PeerRunner` were empty class bodies that added no
+  behaviour. `RUNNER_MAP` now points directly at `PairRunner`, `ReqRunner`,
+  and `ServerRunner` for those socket types. `channel.rb` and `peer.rb`
+  deleted; empty bodies removed from `router_dealer.rb` and
+  `client_server.rb`.
 - **Extract `TransientMonitor`** — `start_disconnect_monitor`,
   `transient_ready!`, and `@transient_barrier` removed from `BaseRunner`
   into `OMQ::CLI::TransientMonitor`. `BaseRunner` holds a single

@@ -2,10 +2,6 @@
 
 module OMQ
   module CLI
-    class ClientRunner < ReqRunner
-    end
-
-
     class ServerRunner < BaseRunner
       include RoutingHelper
 

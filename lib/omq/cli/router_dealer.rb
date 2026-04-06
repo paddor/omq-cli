@@ -2,10 +2,6 @@
 
 module OMQ
   module CLI
-    class DealerRunner < PairRunner
-    end
-
-
     class RouterRunner < BaseRunner
       include RoutingHelper
 
