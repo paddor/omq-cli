@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "minitest/autorun"
+require "securerandom"
 require "omq"
 require "omq/draft/all"
 require "omq/ractor"

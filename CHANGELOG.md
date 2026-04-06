@@ -20,6 +20,24 @@
   `OMQ::Ractor.new`; worker blocks contain only pure computation.
   Semantics are unchanged.
 
+### Fixed
+
+- **`-P` recv-only: stale round-robin entry** — the initial socket
+  created by `call()` was connecting to the upstream endpoint before
+  `run_parallel_recv` closed it, leaving a dead entry in the PUSH
+  peer's round-robin cycle and silently dropping 1 in every N+1
+  messages. Fixed by skipping `attach_endpoints` when `config.parallel`
+  is set.
+- **`-P` BEGIN/END blocks in Ractor workers** — `@ivar` expressions in
+  BEGIN/END/eval blocks raised `Ractor::IsolationError` because `self`
+  inside a Ractor is a shareable object. All three procs now execute via
+  `instance_exec` on a per-worker `Object.new` context.
+- **`-P` END block result forwarded** — the return value of an END block
+  was discarded rather than forwarded to the output socket. Now captured
+  and pushed to `push_p`, enabling patterns like
+  `BEGIN{@s=0} @s+=Integer($F.first);nil END{[@s.to_s]}` to emit once
+  per worker on exit.
+
 ---
 
 ### Added

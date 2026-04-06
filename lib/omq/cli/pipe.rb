@@ -91,19 +91,20 @@ module OMQ
 
 
       def run_parallel(task)
-        cfg = config
-        n   = cfg.parallel
+        cfg      = config
+        n_workers = cfg.parallel
         in_eps, out_eps = resolve_endpoints
-        sock_opts = { linger: cfg.linger }
-        sock_opts[:recv_timeout] = cfg.timeout if cfg.timeout
-        sock_opts[:send_timeout] = cfg.timeout if cfg.timeout
+        pull_opts = { linger: cfg.linger }
+        push_opts = { linger: cfg.linger }
+        pull_opts[:recv_timeout] = cfg.timeout if cfg.timeout
+        push_opts[:send_timeout] = cfg.timeout if cfg.timeout
 
         # Create N PULL+PUSH socket pairs in the main Async context.
         # Each worker gets its own pair; ZMQ distributes work across the
         # N PULL connections and fans results in from the N PUSH connections.
-        pairs = n.times.map do
-          pull = OMQ::PULL.new(**sock_opts)
-          push = OMQ::PUSH.new(**sock_opts)
+        pairs = n_workers.times.map do
+          pull = OMQ::PULL.new(**pull_opts)
+          push = OMQ::PUSH.new(**push_opts)
           pull.reconnect_interval = cfg.reconnect_ivl if cfg.reconnect_ivl
           push.reconnect_interval = cfg.reconnect_ivl if cfg.reconnect_ivl
           pull.heartbeat_interval = cfg.heartbeat_ivl if cfg.heartbeat_ivl
@@ -129,28 +130,34 @@ module OMQ
           end
         end
 
-        recv_src   = cfg.recv_expr
-        fmt_format = cfg.format
-        fmt_compr  = cfg.compress
+        # Pack worker config into a shareable Hash passed via omq.data —
+        # Ruby 4.0 forbids Ractor blocks from closing over outer locals.
+        worker_data = ::Ractor.make_shareable({
+          recv_src:   cfg.recv_expr,
+          fmt_format: cfg.format,
+          fmt_compr:  cfg.compress,
+          n_count:    cfg.count,
+        })
 
         workers = pairs.map do |pull, push|
-          OMQ::Ractor.new(pull, push, serialize: false) do |omq|
+          OMQ::Ractor.new(pull, push, serialize: false, data: worker_data) do |omq|
             pull_p, push_p = omq.sockets
+            d = omq.data
 
             # Re-compile expression inside Ractor (Procs are not shareable)
-            extract = ->(src, kw) {
-              s = src.index(/#{kw}\s*\{/)
-              return [src, nil] unless s
-              ci = src.index("{", s); d = 1; j = ci + 1
-              while j < src.length && d > 0
-                d += 1 if src[j] == "{"; d -= 1 if src[j] == "}"
-                j += 1
-              end
-              [src[0...s] + src[j..], src[(ci + 1)..(j - 2)]]
-            }
-
             begin_proc = end_proc = eval_proc = nil
+            recv_src = d[:recv_src]
             if recv_src
+              extract = ->(src, kw) {
+                s = src.index(/#{kw}\s*\{/)
+                return [src, nil] unless s
+                ci = src.index("{", s); d2 = 1; j = ci + 1
+                while j < src.length && d2 > 0
+                  d2 += 1 if src[j] == "{"; d2 -= 1 if src[j] == "}"
+                  j += 1
+                end
+                [src[0...s] + src[j..], src[(ci + 1)..(j - 2)]]
+              }
               expr, begin_body = extract.(recv_src, "BEGIN")
               expr, end_body   = extract.(expr,     "END")
               begin_proc = eval("proc { #{begin_body} }") if begin_body
@@ -161,17 +168,20 @@ module OMQ
               end
             end
 
-            formatter = OMQ::CLI::Formatter.new(fmt_format, compress: fmt_compr)
-            begin_proc&.call
+            formatter = OMQ::CLI::Formatter.new(d[:fmt_format], compress: d[:fmt_compr])
+            # Use a dedicated context object so @ivar expressions in BEGIN/END/eval
+            # work inside Ractors (self in a Ractor is shareable; Object.new is not).
+            _ctx = Object.new
+            _ctx.instance_exec(&begin_proc) if begin_proc
 
-            n_count = cfg.count
+            n_count = d[:n_count]
             i = 0
             loop do
               parts = pull_p.receive
               break if parts.nil?
               parts = formatter.decompress(parts)
               if eval_proc
-                result = eval_proc.call(parts)
+                result = _ctx.instance_exec(parts, &eval_proc)
                 parts = case result
                         when nil    then next
                         when Array  then result
@@ -184,7 +194,16 @@ module OMQ
               break if n_count && n_count > 0 && i >= n_count
             end
 
-            end_proc&.call
+            if end_proc
+              result = _ctx.instance_exec(&end_proc)
+              out = case result
+                    when nil    then nil
+                    when Array  then result
+                    when String then [result]
+                    else             [result.to_s]
+                    end
+              push_p << formatter.compress(out) if out && !out.empty?
+            end
           end
         end
 
