@@ -18,16 +18,18 @@ module OMQ
           send_msg(parts)
           reply = recv_msg
           break if reply.nil?
-          reply = eval_recv_expr(reply)
-          output(reply)
+          output(eval_recv_expr(reply))
           i += 1
           break if n && n > 0 && i >= n
           break if !config.interval && (config.data || config.file)
-          if config.interval
-            wait = config.interval - (Time.now.to_f % config.interval)
-            sleep(wait) if wait > 0
-          end
+          wait_for_interval if config.interval
         end
+      end
+
+
+      def wait_for_interval
+        wait = config.interval - (Time.now.to_f % config.interval)
+        sleep(wait) if wait > 0
       end
     end
 
@@ -42,26 +44,32 @@ module OMQ
         loop do
           msg = recv_msg
           break if msg.nil?
-          if config.recv_expr || @recv_eval_proc
-            reply = eval_recv_expr(msg)
-            unless reply.equal?(SENT)
-              output(reply)
-              send_msg(reply || [""])
-            end
-          elsif config.echo
-            output(msg)
-            send_msg(msg)
-          elsif config.data || config.file || !config.stdin_is_tty
-            reply = read_next
-            break unless reply
-            output(msg)
-            send_msg(reply)
-          else
-            abort "REP needs a reply source: --echo, --data, --file, -e, or stdin pipe"
-          end
+          break unless handle_rep_request(msg)
           i += 1
           break if n && n > 0 && i >= n
         end
+      end
+
+
+      def handle_rep_request(msg)
+        if config.recv_expr || @recv_eval_proc
+          reply = eval_recv_expr(msg)
+          unless reply.equal?(SENT)
+            output(reply)
+            send_msg(reply || [""])
+          end
+        elsif config.echo
+          output(msg)
+          send_msg(msg)
+        elsif config.data || config.file || !config.stdin_is_tty
+          reply = read_next
+          return false unless reply
+          output(msg)
+          send_msg(reply)
+        else
+          abort "REP needs a reply source: --echo, --data, --file, -e, or stdin pipe"
+        end
+        true
       end
     end
   end

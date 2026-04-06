@@ -4,6 +4,11 @@
 
 ### Refactored
 
+- **`req_rep.rb` + `pair.rb` method extraction** — `ReqRunner#run_loop` (23 lines)
+  gains `wait_for_interval`; `RepRunner#run_loop` (27 lines) gains
+  `handle_rep_request`; `PairRunner#run_loop` (20 lines) gains `recv_async`.
+  Each `run_loop` shrinks to ~10 lines.
+
 - **`BaseRunner` method extraction** — `call` (23 lines), `wait_for_peer` (18),
   `read_next` (20), `run_send_logic` (29), and `compile_expr` (13) each
   decomposed into focused helpers: `setup_socket`, `maybe_start_transient_monitor`,

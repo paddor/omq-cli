@@ -7,7 +7,14 @@ module OMQ
 
 
       def run_loop(task)
-        receiver = task.async do
+        receiver = recv_async(task)
+        sender   = task.async { run_send_logic }
+        wait_for_loops(receiver, sender)
+      end
+
+
+      def recv_async(task)
+        task.async do
           n = config.count
           i = 0
           loop do
@@ -19,12 +26,6 @@ module OMQ
             break if n && n > 0 && i >= n
           end
         end
-
-        sender = task.async do
-          run_send_logic
-        end
-
-        wait_for_loops(receiver, sender)
       end
     end
   end
