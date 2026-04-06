@@ -21,7 +21,7 @@ module OMQ
         compile_expr
 
         if config.transient
-          start_disconnect_monitor(task)
+          @transient_monitor = TransientMonitor.new(@sock, config, task, method(:log))
           Async::Task.current.yield  # let monitor start waiting
         end
 
@@ -88,26 +88,8 @@ module OMQ
       # ── Transient disconnect monitor ────────────────────────────────
 
 
-      def start_disconnect_monitor(task)
-        @transient_barrier = Async::Promise.new
-        task.async do
-          @transient_barrier.wait
-          @sock.all_peers_gone.wait unless @sock.connection_count == 0
-          log "All peers disconnected, exiting"
-          @sock.reconnect_enabled = false
-          if config.send_only?
-            task.stop
-          else
-            @sock.close_read
-          end
-        end
-      end
-
-
       def transient_ready!
-        if config.transient && !@transient_barrier.resolved?
-          @transient_barrier.resolve(true)
-        end
+        @transient_monitor&.ready!
       end
 
       # ── Timeout helper ──────────────────────────────────────────────

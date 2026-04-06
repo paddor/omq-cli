@@ -4,6 +4,11 @@
 
 ### Refactored
 
+- **Extract `TransientMonitor`** — `start_disconnect_monitor`,
+  `transient_ready!`, and `@transient_barrier` removed from `BaseRunner`
+  into `OMQ::CLI::TransientMonitor`. `BaseRunner` holds a single
+  `@transient_monitor` collaborator; `transient_ready!` delegates to
+  `monitor.ready!`.
 - **Extract `RoutingHelper` module** — `display_routing_id`, `resolve_target`,
   and a `send_targeted_or_eval` template method (calling a `send_to_peer` hook)
   extracted from `RouterRunner` and `ServerRunner` into a shared module.
