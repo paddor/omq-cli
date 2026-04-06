@@ -34,7 +34,7 @@ module OMQ
 
 
       def attach_endpoints(sock, endpoints)
-        endpoints.each { |ep| ep.bind? ? sock.bind(ep.url) : sock.connect(ep.url) }
+        SocketSetup.attach_endpoints(sock, endpoints)
       end
 
 

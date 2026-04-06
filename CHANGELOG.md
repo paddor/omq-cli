@@ -4,6 +4,12 @@
 
 ### Refactored
 
+- **Extract `SocketSetup`** — socket construction (`SocketSetup.build`),
+  endpoint attachment (`SocketSetup.attach` for URL lists,
+  `SocketSetup.attach_endpoints` for `Endpoint` objects), subscription/group
+  setup (`SocketSetup.setup_subscriptions`), and CURVE configuration
+  (`SocketSetup.setup_curve`) extracted from `BaseRunner` into a stateless
+  module. `PipeRunner#attach_endpoints` now delegates to the shared module.
 - **Extract `ExpressionEvaluator`** — expression compilation (`extract_block`,
   `extract_blocks`, BEGIN/END parsing, proc wrapping) and result normalisation
   live in `OMQ::CLI::ExpressionEvaluator`. Removes duplicate code from
