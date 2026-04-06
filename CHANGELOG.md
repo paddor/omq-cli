@@ -31,6 +31,13 @@
   `build_worker_data`, `spawn_workers`, `join_workers`. Each caller shrinks to
   ~8 lines.
 
+- **Hoist `eval_proc` + `Integer#times` in Ractor worker loops** — in both
+  `ParallelRecvRunner` and `pipe.rb#spawn_workers`, `if eval_proc` was checked
+  on every message despite being invariant. Now a pre-loop branch splits into
+  two (or four, combined with `n_count`) separate loops. Count limits use
+  `n.times` instead of a manual `i` counter, eliminating the `n && n > 0`
+  check from every iteration.
+
 - **`ExpressionEvaluator.normalize_result`** — the `case result when nil/Array/String/else`
   block appeared in both Ractor worker bodies (`ParallelRecvRunner` and `pipe.rb`).
   Extracted to a class method and both callers updated to use it.

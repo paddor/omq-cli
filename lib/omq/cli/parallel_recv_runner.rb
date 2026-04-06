@@ -67,17 +67,22 @@ module OMQ
             _ctx = Object.new
             _ctx.instance_exec(&begin_proc) if begin_proc
 
-            loop do
-              parts = pull_p.receive
-              break if parts.nil?
-              parts = formatter.decompress(parts)
-              if eval_proc
+            if eval_proc
+              loop do
+                parts = pull_p.receive
+                break if parts.nil?
                 parts = OMQ::CLI::ExpressionEvaluator.normalize_result(
-                  _ctx.instance_exec(parts, &eval_proc)
+                  _ctx.instance_exec(formatter.decompress(parts), &eval_proc)
                 )
                 next if parts.nil?
+                push_p << parts unless parts.empty?
               end
-              push_p << parts unless parts.empty?
+            else
+              loop do
+                parts = pull_p.receive
+                break if parts.nil?
+                push_p << formatter.decompress(parts)
+              end
             end
 
             if end_proc
@@ -91,13 +96,18 @@ module OMQ
 
         # Collect loop: drain inproc PULL → output
         n_count = cfg.count
-        i = 0
-        loop do
-          parts = collector.receive
-          break if parts.nil?
-          @output_fn.call(parts)
-          i += 1
-          break if n_count && n_count > 0 && i >= n_count
+        if n_count && n_count > 0
+          n_count.times do
+            parts = collector.receive
+            break if parts.nil?
+            @output_fn.call(parts)
+          end
+        else
+          loop do
+            parts = collector.receive
+            break if parts.nil?
+            @output_fn.call(parts)
+          end
         end
 
         # Inject nil into each worker's input port so it exits its loop
