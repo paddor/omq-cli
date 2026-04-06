@@ -14,25 +14,13 @@ module OMQ
 
 
       def call(task)
-        @sock = create_socket
-        attach_endpoints unless config.parallel
-        setup_curve
-        setup_subscriptions
-        compile_expr
-
-        if config.transient
-          @transient_monitor = TransientMonitor.new(@sock, config, task, method(:log))
-          Async::Task.current.yield  # let monitor start waiting
-        end
-
+        setup_socket
+        maybe_start_transient_monitor(task)
         sleep(config.delay) if config.delay && config.recv_only?
         wait_for_peer if needs_peer_wait?
-
-        @sock.instance_exec(&@send_begin_proc) if @send_begin_proc
-        @sock.instance_exec(&@recv_begin_proc) if @recv_begin_proc
+        run_begin_blocks
         run_loop(task)
-        @sock.instance_exec(&@send_end_proc) if @send_end_proc
-        @sock.instance_exec(&@recv_end_proc) if @recv_end_proc
+        run_end_blocks
       ensure
         @sock&.close
       end
@@ -49,6 +37,15 @@ module OMQ
       # ── Socket creation ─────────────────────────────────────────────
 
 
+      def setup_socket
+        @sock = create_socket
+        attach_endpoints unless config.parallel
+        setup_curve
+        setup_subscriptions
+        compile_expr
+      end
+
+
       def create_socket
         SocketSetup.build(@klass, config)
       end
@@ -56,6 +53,34 @@ module OMQ
 
       def attach_endpoints
         SocketSetup.attach(@sock, config, verbose: config.verbose)
+      end
+
+      # ── Transient disconnect monitor ────────────────────────────────
+
+
+      def maybe_start_transient_monitor(task)
+        return unless config.transient
+        @transient_monitor = TransientMonitor.new(@sock, config, task, method(:log))
+        Async::Task.current.yield  # let monitor start waiting
+      end
+
+
+      def transient_ready!
+        @transient_monitor&.ready!
+      end
+
+      # ── BEGIN / END blocks ──────────────────────────────────────────
+
+
+      def run_begin_blocks
+        @sock.instance_exec(&@send_begin_proc) if @send_begin_proc
+        @sock.instance_exec(&@recv_begin_proc) if @recv_begin_proc
+      end
+
+
+      def run_end_blocks
+        @sock.instance_exec(&@send_end_proc) if @send_end_proc
+        @sock.instance_exec(&@recv_end_proc) if @recv_end_proc
       end
 
       # ── Peer wait with grace period ─────────────────────────────────
@@ -70,26 +95,26 @@ module OMQ
         with_timeout(config.timeout) do
           @sock.peer_connected.wait
           log "Peer connected"
-          if %w[pub xpub].include?(config.type_name)
-            @sock.subscriber_joined.wait
-            log "Subscriber joined"
-          end
-
-          # Grace period: when multiple peers may be connecting (bind or
-          # multiple connect URLs), wait one reconnect interval so
-          # latecomers finish their handshake before we start sending.
-          if config.binds.any? || config.connects.size > 1
-            ri = @sock.options.reconnect_interval
-            sleep(ri.is_a?(Range) ? ri.begin : ri)
-          end
+          wait_for_subscriber
+          apply_grace_period
         end
       end
 
-      # ── Transient disconnect monitor ────────────────────────────────
+
+      def wait_for_subscriber
+        return unless %w[pub xpub].include?(config.type_name)
+        @sock.subscriber_joined.wait
+        log "Subscriber joined"
+      end
 
 
-      def transient_ready!
-        @transient_monitor&.ready!
+      # Grace period: when multiple peers may be connecting (bind or
+      # multiple connect URLs), wait one reconnect interval so
+      # latecomers finish their handshake before we start sending.
+      def apply_grace_period
+        return unless config.binds.any? || config.connects.size > 1
+        ri = @sock.options.reconnect_interval
+        sleep(ri.is_a?(Range) ? ri.begin : ri)
       end
 
       # ── Timeout helper ──────────────────────────────────────────────
@@ -120,37 +145,45 @@ module OMQ
         SocketSetup.setup_curve(@sock, config)
       end
 
-
       # ── Shared loop bodies ──────────────────────────────────────────
 
 
       def run_send_logic
         n = config.count
-        i = 0
         sleep(config.delay) if config.delay
         if config.interval
-          i += send_tick
-          unless @send_tick_eof || (n && n > 0 && i >= n)
-            Async::Loop.quantized(interval: config.interval) do
-              i += send_tick
-              break if @send_tick_eof || (n && n > 0 && i >= n)
-            end
-          end
+          run_interval_send(n)
         elsif config.data || config.file
           parts = eval_send_expr(read_next)
           send_msg(parts) if parts
         elsif stdin_ready?
-          loop do
-            parts = read_next
-            break unless parts
-            parts = eval_send_expr(parts)
-            send_msg(parts) if parts
-            i += 1
-            break if n && n > 0 && i >= n
-          end
+          run_stdin_send(n)
         elsif @send_eval_proc
           parts = eval_send_expr(nil)
           send_msg(parts) if parts
+        end
+      end
+
+
+      def run_interval_send(n)
+        i = send_tick
+        return if @send_tick_eof || (n && n > 0 && i >= n)
+        Async::Loop.quantized(interval: config.interval) do
+          i += send_tick
+          break if @send_tick_eof || (n && n > 0 && i >= n)
+        end
+      end
+
+
+      def run_stdin_send(n)
+        i = 0
+        loop do
+          parts = read_next
+          break unless parts
+          parts = eval_send_expr(parts)
+          send_msg(parts) if parts
+          i += 1
+          break if n && n > 0 && i >= n
         end
       end
 
@@ -234,23 +267,30 @@ module OMQ
 
 
       def read_next
+        config.data || config.file ? read_inline_data : read_stdin_input
+      end
+
+
+      def read_inline_data
         if config.data
           @fmt.decode(config.data + "\n")
-        elsif config.file
+        else
           @file_data ||= (config.file == "-" ? $stdin.read : File.read(config.file)).chomp
           @fmt.decode(@file_data + "\n")
-        elsif config.format == :msgpack
-          @fmt.decode_msgpack($stdin)
-        elsif config.format == :marshal
-          @fmt.decode_marshal($stdin)
-        elsif config.format == :raw
+        end
+      end
+
+
+      def read_stdin_input
+        case config.format
+        when :msgpack then @fmt.decode_msgpack($stdin)
+        when :marshal then @fmt.decode_marshal($stdin)
+        when :raw
           data = $stdin.read
-          return nil if data.nil? || data.empty?
-          [data]
+          data.nil? || data.empty? ? nil : [data]
         else
           line = $stdin.gets
-          return nil if line.nil?
-          @fmt.decode(line)
+          line.nil? ? nil : @fmt.decode(line)
         end
       end
 
@@ -286,14 +326,27 @@ module OMQ
 
 
       def compile_expr
-        @send_evaluator = ExpressionEvaluator.new(config.send_expr, format: config.format,
-                                                   fallback_proc: OMQ.outgoing_proc)
-        @recv_evaluator = ExpressionEvaluator.new(config.recv_expr, format: config.format,
-                                                   fallback_proc: OMQ.incoming_proc)
+        @send_evaluator = compile_evaluator(config.send_expr, fallback: OMQ.outgoing_proc)
+        @recv_evaluator = compile_evaluator(config.recv_expr, fallback: OMQ.incoming_proc)
+        assign_send_aliases
+        assign_recv_aliases
+      end
+
+
+      def compile_evaluator(src, fallback:)
+        ExpressionEvaluator.new(src, format: config.format, fallback_proc: fallback)
+      end
+
+
+      def assign_send_aliases
         # Keep ivar aliases — subclasses check these directly
         @send_begin_proc = @send_evaluator.begin_proc
         @send_eval_proc  = @send_evaluator.eval_proc
         @send_end_proc   = @send_evaluator.end_proc
+      end
+
+
+      def assign_recv_aliases
         @recv_begin_proc = @recv_evaluator.begin_proc
         @recv_eval_proc  = @recv_evaluator.eval_proc
         @recv_end_proc   = @recv_evaluator.end_proc

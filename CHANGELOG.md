@@ -4,6 +4,14 @@
 
 ### Refactored
 
+- **`BaseRunner` method extraction** — `call` (23 lines), `wait_for_peer` (18),
+  `read_next` (20), `run_send_logic` (29), and `compile_expr` (13) each
+  decomposed into focused helpers: `setup_socket`, `maybe_start_transient_monitor`,
+  `run_begin_blocks`, `run_end_blocks`, `wait_for_subscriber`, `apply_grace_period`,
+  `read_inline_data`, `read_stdin_input`, `run_interval_send`, `run_stdin_send`,
+  `compile_evaluator`, `assign_send_aliases`, `assign_recv_aliases`.
+  Every public-facing method is now ≤10 lines.
+
 - **`RoutingHelper`: extract `async_send_loop`, `interval_send_loop`, `stdin_send_loop`** —
   the sender `task.async` block was identical in `RouterRunner#run_loop` and
   `ServerRunner#monitor_loop`. Moved to `RoutingHelper` and split into three
