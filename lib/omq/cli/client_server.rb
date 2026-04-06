@@ -25,28 +25,40 @@ module OMQ
           break if parts.nil?
           routing_id = parts.shift
           body       = @fmt.decompress(parts)
-
-          if config.recv_expr || @recv_eval_proc
-            reply = eval_recv_expr(body)
-            output([display_routing_id(routing_id), *(reply || [""])])
-            @sock.send_to(routing_id, @fmt.compress(reply || [""]).first)
-          elsif config.echo
-            output([display_routing_id(routing_id), *body])
-            @sock.send_to(routing_id, @fmt.compress(body).first || "")
-          elsif config.data || config.file || !config.stdin_is_tty
-            reply = read_next
-            break unless reply
-            output([display_routing_id(routing_id), *body])
-            @sock.send_to(routing_id, @fmt.compress(reply).first || "")
-          end
+          break unless handle_server_request(routing_id, body)
           i += 1
           break if n && n > 0 && i >= n
         end
       end
 
 
+      def handle_server_request(routing_id, body)
+        if config.recv_expr || @recv_eval_proc
+          reply = eval_recv_expr(body)
+          output([display_routing_id(routing_id), *(reply || [""])])
+          @sock.send_to(routing_id, @fmt.compress(reply || [""]).first)
+        elsif config.echo
+          output([display_routing_id(routing_id), *body])
+          @sock.send_to(routing_id, @fmt.compress(body).first || "")
+        elsif config.data || config.file || !config.stdin_is_tty
+          reply = read_next
+          return false unless reply
+          output([display_routing_id(routing_id), *body])
+          @sock.send_to(routing_id, @fmt.compress(reply).first || "")
+        end
+        true
+      end
+
+
       def monitor_loop(task)
-        receiver = task.async do
+        receiver = recv_async(task)
+        sender   = async_send_loop(task)
+        wait_for_loops(receiver, sender)
+      end
+
+
+      def recv_async(task)
+        task.async do
           n = config.count
           i = 0
           loop do
@@ -60,34 +72,6 @@ module OMQ
             break if n && n > 0 && i >= n
           end
         end
-
-        sender = task.async do
-          n = config.count
-          i = 0
-          sleep(config.delay) if config.delay
-          if config.interval
-            Async::Loop.quantized(interval: config.interval) do
-              parts = read_next
-              break unless parts
-              send_targeted_or_eval(parts)
-              i += 1
-              break if n && n > 0 && i >= n
-            end
-          elsif config.data || config.file
-            parts = read_next
-            send_targeted_or_eval(parts) if parts
-          else
-            loop do
-              parts = read_next
-              break unless parts
-              send_targeted_or_eval(parts)
-              i += 1
-              break if n && n > 0 && i >= n
-            end
-          end
-        end
-
-        wait_for_loops(receiver, sender)
       end
 
 

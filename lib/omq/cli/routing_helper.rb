@@ -49,6 +49,47 @@ module OMQ
           send_msg(parts)
         end
       end
+
+
+      # Async sender shared by ROUTER and SERVER monitor mode.
+      #
+      def async_send_loop(task)
+        task.async do
+          n = config.count
+          i = 0
+          sleep(config.delay) if config.delay
+          if config.interval
+            interval_send_loop(n, i)
+          elsif config.data || config.file
+            parts = read_next
+            send_targeted_or_eval(parts) if parts
+          else
+            stdin_send_loop(n, i)
+          end
+        end
+      end
+
+
+      def interval_send_loop(n, i)
+        Async::Loop.quantized(interval: config.interval) do
+          parts = read_next
+          break unless parts
+          send_targeted_or_eval(parts)
+          i += 1
+          break if n && n > 0 && i >= n
+        end
+      end
+
+
+      def stdin_send_loop(n, i)
+        loop do
+          parts = read_next
+          break unless parts
+          send_targeted_or_eval(parts)
+          i += 1
+          break if n && n > 0 && i >= n
+        end
+      end
     end
   end
 end

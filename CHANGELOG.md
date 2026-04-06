@@ -4,6 +4,13 @@
 
 ### Refactored
 
+- **`RoutingHelper`: extract `async_send_loop`, `interval_send_loop`, `stdin_send_loop`** —
+  the sender `task.async` block was identical in `RouterRunner#run_loop` and
+  `ServerRunner#monitor_loop`. Moved to `RoutingHelper` and split into three
+  focused helpers. Both callers reduced to a 3-line orchestration.
+  `ServerRunner#reply_loop` gained `handle_server_request` to hold the 3-branch
+  dispatch, leaving the loop itself at ~8 lines.
+
 - **`pipe.rb` method extraction** — `run_sequential` (50 lines) and `run_parallel`
   (105 lines) decomposed into focused helpers: `build_pull_push`,
   `apply_socket_intervals`, `setup_sequential_transient`, `sequential_message_loop`,
