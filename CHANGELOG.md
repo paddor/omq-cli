@@ -4,6 +4,9 @@
 
 ### Refactored
 
+- **`ReqRunner#run_loop` deduplication** — the interval and non-interval
+  branches were identical loops; merged into one with a trailing
+  `sleep(wait)` gated on `config.interval`.
 - **Remove empty runner subclasses** — `DealerRunner`, `ChannelRunner`,
   `ClientRunner`, and `PeerRunner` were empty class bodies that added no
   behaviour. `RUNNER_MAP` now points directly at `PairRunner`, `ReqRunner`,

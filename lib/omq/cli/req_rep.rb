@@ -10,37 +10,22 @@ module OMQ
         n = config.count
         i = 0
         sleep(config.delay) if config.delay
-        if config.interval
-          loop do
-            parts = read_next
-            break unless parts
-            parts = eval_send_expr(parts)
-            next unless parts
-            send_msg(parts)
-            reply = recv_msg
-            break if reply.nil?
-            reply = eval_recv_expr(reply)
-            output(reply)
-            i += 1
-            break if n && n > 0 && i >= n
-            interval = config.interval
-            wait     = interval - (Time.now.to_f % interval)
+        loop do
+          parts = read_next
+          break unless parts
+          parts = eval_send_expr(parts)
+          next unless parts
+          send_msg(parts)
+          reply = recv_msg
+          break if reply.nil?
+          reply = eval_recv_expr(reply)
+          output(reply)
+          i += 1
+          break if n && n > 0 && i >= n
+          break if !config.interval && (config.data || config.file)
+          if config.interval
+            wait = config.interval - (Time.now.to_f % config.interval)
             sleep(wait) if wait > 0
-          end
-        else
-          loop do
-            parts = read_next
-            break unless parts
-            parts = eval_send_expr(parts)
-            next unless parts
-            send_msg(parts)
-            reply = recv_msg
-            break if reply.nil?
-            reply = eval_recv_expr(reply)
-            output(reply)
-            i += 1
-            break if n && n > 0 && i >= n
-            break if config.data || config.file
           end
         end
       end
