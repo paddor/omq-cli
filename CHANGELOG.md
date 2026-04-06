@@ -4,6 +4,13 @@
 
 ### Refactored
 
+- **Extract `CliParser`** — `parse_options` (178 lines), `validate!` (48 lines),
+  `validate_gems!`, `DEFAULT_OPTS`, and the `EXAMPLES` heredoc (184 lines) moved
+  from the `OMQ::CLI` module into a dedicated `OMQ::CLI::CliParser` class in
+  `lib/omq/cli/cli_parser.rb`. `CLI.build_config` now calls `CliParser.parse`
+  and `CliParser.validate!`; `CLI.run_socket` calls `CliParser.validate_gems!`.
+  `cli.rb` shrinks from 674 to ~200 lines.
+
 - **`ReqRunner#run_loop` deduplication** — the interval and non-interval
   branches were identical loops; merged into one with a trailing
   `sleep(wait)` gated on `config.interval`.
