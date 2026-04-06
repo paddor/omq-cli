@@ -4,6 +4,13 @@
 
 ### Refactored
 
+- **`pipe.rb` method extraction** — `run_sequential` (50 lines) and `run_parallel`
+  (105 lines) decomposed into focused helpers: `build_pull_push`,
+  `apply_socket_intervals`, `setup_sequential_transient`, `sequential_message_loop`,
+  `build_socket_pairs`, `wait_for_pairs`, `setup_parallel_transient`,
+  `build_worker_data`, `spawn_workers`, `join_workers`. Each caller shrinks to
+  ~8 lines.
+
 - **`ExpressionEvaluator.normalize_result`** — the `case result when nil/Array/String/else`
   block appeared in both Ractor worker bodies (`ParallelRecvRunner` and `pipe.rb`).
   Extracted to a class method and both callers updated to use it.

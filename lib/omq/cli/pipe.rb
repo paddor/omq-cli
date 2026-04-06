@@ -38,51 +38,25 @@ module OMQ
       end
 
 
+      # ── Sequential ───────────────────────────────────────────────────
+
+
       def run_sequential(task)
         in_eps, out_eps = resolve_endpoints
-
-        @pull = OMQ::PULL.new(linger: config.linger, recv_timeout: config.timeout)
-        @push = OMQ::PUSH.new(linger: config.linger, send_timeout: config.timeout)
-        @pull.reconnect_interval  = config.reconnect_ivl if config.reconnect_ivl
-        @push.reconnect_interval  = config.reconnect_ivl if config.reconnect_ivl
-        @pull.heartbeat_interval  = config.heartbeat_ivl if config.heartbeat_ivl
-        @push.heartbeat_interval  = config.heartbeat_ivl if config.heartbeat_ivl
-
-        attach_endpoints(@pull, in_eps)
-        attach_endpoints(@push, out_eps)
-
+        @pull, @push = build_pull_push(
+          { linger: config.linger, recv_timeout: config.timeout },
+          { linger: config.linger, send_timeout: config.timeout },
+          in_eps, out_eps
+        )
         compile_expr
         @sock = @pull  # for eval instance_exec
-
         with_timeout(config.timeout) do
           @push.peer_connected.wait
           @pull.peer_connected.wait
         end
-
-        if config.transient
-          task.async do
-            @pull.all_peers_gone.wait
-            @pull.reconnect_enabled = false
-            @pull.close_read
-          end
-        end
-
+        setup_sequential_transient(task)
         @sock.instance_exec(&@recv_begin_proc) if @recv_begin_proc
-
-        n = config.count
-        i = 0
-        loop do
-          parts = @pull.receive
-          break if parts.nil?
-          parts = @fmt.decompress(parts)
-          parts = eval_recv_expr(parts)
-          if parts && !parts.empty?
-            @push.send(@fmt.compress(parts))
-          end
-          i += 1
-          break if n && n > 0 && i >= n
-        end
-
+        sequential_message_loop
         @sock.instance_exec(&@recv_end_proc) if @recv_end_proc
       ensure
         @pull&.close
@@ -90,56 +64,111 @@ module OMQ
       end
 
 
-      def run_parallel(task)
-        cfg      = config
-        n_workers = cfg.parallel
-        in_eps, out_eps = resolve_endpoints
-        pull_opts = { linger: cfg.linger }
-        push_opts = { linger: cfg.linger }
-        pull_opts[:recv_timeout] = cfg.timeout if cfg.timeout
-        push_opts[:send_timeout] = cfg.timeout if cfg.timeout
+      def apply_socket_intervals(sock)
+        sock.reconnect_interval = config.reconnect_ivl if config.reconnect_ivl
+        sock.heartbeat_interval = config.heartbeat_ivl if config.heartbeat_ivl
+      end
 
-        # Create N PULL+PUSH socket pairs in the main Async context.
-        # Each worker gets its own pair; ZMQ distributes work across the
-        # N PULL connections and fans results in from the N PUSH connections.
-        pairs = n_workers.times.map do
-          pull = OMQ::PULL.new(**pull_opts)
-          push = OMQ::PUSH.new(**push_opts)
-          pull.reconnect_interval = cfg.reconnect_ivl if cfg.reconnect_ivl
-          push.reconnect_interval = cfg.reconnect_ivl if cfg.reconnect_ivl
-          pull.heartbeat_interval = cfg.heartbeat_ivl if cfg.heartbeat_ivl
-          push.heartbeat_interval = cfg.heartbeat_ivl if cfg.heartbeat_ivl
-          in_eps.each  { |ep| pull.connect(ep.url) }
-          out_eps.each { |ep| push.connect(ep.url) }
-          [pull, push]
+
+      def build_pull_push(pull_opts, push_opts, in_eps, out_eps)
+        pull = OMQ::PULL.new(**pull_opts)
+        push = OMQ::PUSH.new(**push_opts)
+        apply_socket_intervals(pull)
+        apply_socket_intervals(push)
+        attach_endpoints(pull, in_eps)
+        attach_endpoints(push, out_eps)
+        [pull, push]
+      end
+
+
+      def setup_sequential_transient(task)
+        return unless config.transient
+        task.async do
+          @pull.all_peers_gone.wait
+          @pull.reconnect_enabled = false
+          @pull.close_read
         end
+      end
 
-        # Wait for peer connections before spawning workers.
-        # peer_connected.wait requires the Async context (not available inside Ractors).
-        with_timeout(cfg.timeout) do
+
+      def sequential_message_loop
+        n = config.count
+        i = 0
+        loop do
+          parts = @pull.receive
+          break if parts.nil?
+          parts = @fmt.decompress(parts)
+          parts = eval_recv_expr(parts)
+          @push.send(@fmt.compress(parts)) if parts && !parts.empty?
+          i += 1
+          break if n && n > 0 && i >= n
+        end
+      end
+
+
+      # ── Parallel ─────────────────────────────────────────────────────
+
+
+      def run_parallel(task)
+        in_eps, out_eps = resolve_endpoints
+        pairs = build_socket_pairs(config.parallel, in_eps, out_eps)
+        wait_for_pairs(pairs)
+        setup_parallel_transient(task, pairs)
+        workers = spawn_workers(pairs, build_worker_data)
+        join_workers(workers)
+      ensure
+        pairs&.each do |pull, push|
+          pull&.close
+          push&.close
+        end
+      end
+
+
+      def build_socket_pairs(n_workers, in_eps, out_eps)
+        pull_opts = { linger: config.linger }
+        push_opts = { linger: config.linger }
+        pull_opts[:recv_timeout] = config.timeout if config.timeout
+        push_opts[:send_timeout] = config.timeout if config.timeout
+        n_workers.times.map { build_pull_push(pull_opts, push_opts, in_eps, out_eps) }
+      end
+
+
+      def wait_for_pairs(pairs)
+        with_timeout(config.timeout) do
           pairs.each do |pull, push|
             push.peer_connected.wait
             pull.peer_connected.wait
           end
         end
+      end
 
-        if cfg.transient
-          task.async do
-            pairs[0][0].all_peers_gone.wait
-            pairs.each { |pull, _| pull.reconnect_enabled = false; pull.close_read }
+
+      def setup_parallel_transient(task, pairs)
+        return unless config.transient
+        task.async do
+          pairs[0][0].all_peers_gone.wait
+          pairs.each do |pull, _|
+            pull.reconnect_enabled = false
+            pull.close_read
           end
         end
+      end
 
+
+      def build_worker_data
         # Pack worker config into a shareable Hash passed via omq.data —
         # Ruby 4.0 forbids Ractor blocks from closing over outer locals.
-        worker_data = ::Ractor.make_shareable({
-          recv_src:   cfg.recv_expr,
-          fmt_format: cfg.format,
-          fmt_compr:  cfg.compress,
-          n_count:    cfg.count,
+        ::Ractor.make_shareable({
+          recv_src:   config.recv_expr,
+          fmt_format: config.format,
+          fmt_compr:  config.compress,
+          n_count:    config.count,
         })
+      end
 
-        workers = pairs.map do |pull, push|
+
+      def spawn_workers(pairs, worker_data)
+        pairs.map do |pull, push|
           OMQ::Ractor.new(pull, push, serialize: false, data: worker_data) do |omq|
             pull_p, push_p = omq.sockets
             d = omq.data
@@ -179,15 +208,19 @@ module OMQ
             end
           end
         end
+      end
 
+
+      def join_workers(workers)
         workers.each do |w|
           w.value
         rescue Ractor::RemoteError => e
           $stderr.puts "omq: Ractor error: #{e.cause&.message || e.message}"
         end
-      ensure
-        pairs&.each { |pull, push| pull&.close; push&.close }
       end
+
+
+      # ── Shared helpers ────────────────────────────────────────────────
 
 
       def with_timeout(seconds)
