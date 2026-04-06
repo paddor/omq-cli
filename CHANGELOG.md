@@ -4,6 +4,12 @@
 
 ### Refactored
 
+- **Extract `ParallelRecvRunner`** — `BaseRunner#run_parallel_recv` (107 lines
+  of Ractor worker management) moved into `OMQ::CLI::ParallelRecvRunner` in
+  `lib/omq/cli/parallel_recv_runner.rb`. Constructor takes `klass, config, fmt,
+  output_fn`; `BaseRunner#run_parallel_recv` becomes a 4-line delegator.
+  `BaseRunner` shrinks from 426 to ~325 lines.
+
 - **Extract `CliParser`** — `parse_options` (178 lines), `validate!` (48 lines),
   `validate_gems!`, `DEFAULT_OPTS`, and the `EXAMPLES` heredoc (184 lines) moved
   from the `OMQ::CLI` module into a dedicated `OMQ::CLI::CliParser` class in
