@@ -4,6 +4,10 @@
 
 ### Refactored
 
+- **`ExpressionEvaluator.normalize_result`** — the `case result when nil/Array/String/else`
+  block appeared in both Ractor worker bodies (`ParallelRecvRunner` and `pipe.rb`).
+  Extracted to a class method and both callers updated to use it.
+
 - **Extract `ParallelRecvRunner`** — `BaseRunner#run_parallel_recv` (107 lines
   of Ractor worker management) moved into `OMQ::CLI::ParallelRecvRunner` in
   `lib/omq/cli/parallel_recv_runner.rb`. Constructor takes `klass, config, fmt,

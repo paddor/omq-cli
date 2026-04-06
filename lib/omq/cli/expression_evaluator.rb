@@ -60,6 +60,19 @@ module OMQ
       end
 
 
+      # Normalises an eval result to nil (skip) or an Array of strings.
+      # Used inside Ractor worker blocks where instance methods are unavailable.
+      #
+      def self.normalize_result(result)
+        case result
+        when nil    then nil
+        when Array  then result
+        when String then [result]
+        else             [result.to_s]
+        end
+      end
+
+
       # Compiles begin/end/eval procs inside a Ractor from a raw expression
       # string. Returns [begin_proc, end_proc, eval_proc], any may be nil.
       #

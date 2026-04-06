@@ -72,25 +72,18 @@ module OMQ
               break if parts.nil?
               parts = formatter.decompress(parts)
               if eval_proc
-                result = _ctx.instance_exec(parts, &eval_proc)
-                parts = case result
-                        when nil    then next
-                        when Array  then result
-                        when String then [result]
-                        else             [result.to_s]
-                        end
+                parts = OMQ::CLI::ExpressionEvaluator.normalize_result(
+                  _ctx.instance_exec(parts, &eval_proc)
+                )
+                next if parts.nil?
               end
               push_p << parts unless parts.empty?
             end
 
             if end_proc
-              result = _ctx.instance_exec(&end_proc)
-              out = case result
-                    when nil    then nil
-                    when Array  then result
-                    when String then [result]
-                    else             [result.to_s]
-                    end
+              out = OMQ::CLI::ExpressionEvaluator.normalize_result(
+                _ctx.instance_exec(&end_proc)
+              )
               push_p << out if out && !out.empty?
             end
           end
