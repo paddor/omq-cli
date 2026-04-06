@@ -4,6 +4,11 @@
 
 ### Refactored
 
+- **Extract `RoutingHelper` module** — `display_routing_id`, `resolve_target`,
+  and a `send_targeted_or_eval` template method (calling a `send_to_peer` hook)
+  extracted from `RouterRunner` and `ServerRunner` into a shared module.
+  `display_routing_id` and `resolve_target` removed from `BaseRunner`, which
+  never used them directly.
 - **Extract `SocketSetup`** — socket construction (`SocketSetup.build`),
   endpoint attachment (`SocketSetup.attach` for URL lists,
   `SocketSetup.attach_endpoints` for `Endpoint` objects), subscription/group

@@ -7,6 +7,8 @@ module OMQ
 
 
     class RouterRunner < BaseRunner
+      include RoutingHelper
+
       private
 
 
@@ -57,19 +59,8 @@ module OMQ
       end
 
 
-      def send_targeted_or_eval(parts)
-        if @send_eval_proc
-          parts = eval_send_expr(parts)
-          return unless parts
-          identity = resolve_target(parts.shift)
-          payload  = @fmt.compress(parts)
-          @sock.send([identity, "", *payload])
-        elsif config.target
-          payload = @fmt.compress(parts)
-          @sock.send([resolve_target(config.target), "", *payload])
-        else
-          send_msg(parts)
-        end
+      def send_to_peer(id, parts)
+        @sock.send([id, "", *@fmt.compress(parts)])
       end
     end
   end

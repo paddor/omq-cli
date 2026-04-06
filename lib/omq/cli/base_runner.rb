@@ -402,26 +402,6 @@ module OMQ
         $stdout.flush
       end
 
-      # ── Routing helpers ─────────────────────────────────────────────
-
-
-      def display_routing_id(id)
-        if id.bytes.all? { |b| b >= 0x20 && b <= 0x7E }
-          id
-        else
-          "0x#{id.unpack1("H*")}"
-        end
-      end
-
-
-      def resolve_target(target)
-        if target.start_with?("0x")
-          [target[2..].delete(" ")].pack("H*")
-        else
-          target
-        end
-      end
-
       # ── Eval ────────────────────────────────────────────────────────
 
 
