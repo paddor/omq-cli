@@ -299,28 +299,8 @@ module OMQ
             d = omq.data
 
             # Re-compile expression inside Ractor (Procs are not shareable)
-            begin_proc = end_proc = eval_proc = nil
-            recv_src = d[:recv_src]
-            if recv_src
-              extract = ->(src, kw) {
-                s2 = src.index(/#{kw}\s*\{/)
-                return [src, nil] unless s2
-                ci = src.index("{", s2); d2 = 1; j = ci + 1
-                while j < src.length && d2 > 0
-                  d2 += 1 if src[j] == "{"; d2 -= 1 if src[j] == "}"
-                  j += 1
-                end
-                [src[0...s2] + src[j..], src[(ci + 1)..(j - 2)]]
-              }
-              expr, begin_body = extract.(recv_src, "BEGIN")
-              expr, end_body   = extract.(expr,     "END")
-              begin_proc = eval("proc { #{begin_body} }") if begin_body
-              end_proc   = eval("proc { #{end_body} }")   if end_body
-              if expr && !expr.strip.empty?
-                ractor_expr = expr.gsub(/\$F\b/, "__F")
-                eval_proc   = eval("proc { |__F| $_ = __F&.first; #{ractor_expr} }")
-              end
-            end
+            begin_proc, end_proc, eval_proc =
+              OMQ::CLI::ExpressionEvaluator.compile_inside_ractor(d[:recv_src])
 
             formatter = OMQ::CLI::Formatter.new(d[:fmt_sym], compress: d[:fmt_compr])
             # Use a dedicated context object so @ivar expressions in BEGIN/END/eval
@@ -497,92 +477,31 @@ module OMQ
 
 
       def compile_expr
-        compile_one_expr(:send, config.send_expr)
-        compile_one_expr(:recv, config.recv_expr)
-        @send_eval_proc ||= wrap_registered_proc(OMQ.outgoing_proc)
-        @recv_eval_proc ||= wrap_registered_proc(OMQ.incoming_proc)
+        @send_evaluator = ExpressionEvaluator.new(config.send_expr, format: config.format,
+                                                   fallback_proc: OMQ.outgoing_proc)
+        @recv_evaluator = ExpressionEvaluator.new(config.recv_expr, format: config.format,
+                                                   fallback_proc: OMQ.incoming_proc)
+        # Keep ivar aliases — subclasses check these directly
+        @send_begin_proc = @send_evaluator.begin_proc
+        @send_eval_proc  = @send_evaluator.eval_proc
+        @send_end_proc   = @send_evaluator.end_proc
+        @recv_begin_proc = @recv_evaluator.begin_proc
+        @recv_eval_proc  = @recv_evaluator.eval_proc
+        @recv_end_proc   = @recv_evaluator.end_proc
       end
 
-
-      def wrap_registered_proc(block)
-        return unless block
-        proc do |msg|
-          $_ = msg&.first
-          block.call(msg)
-        end
-      end
-
-
-      def compile_one_expr(direction, src)
-        return unless src
-        expr, begin_body, end_body = extract_blocks(src)
-        instance_variable_set(:"@#{direction}_begin_proc", eval("proc { #{begin_body} }")) if begin_body
-        instance_variable_set(:"@#{direction}_end_proc",   eval("proc { #{end_body} }"))   if end_body
-        if expr && !expr.strip.empty?
-          instance_variable_set(:"@#{direction}_eval_proc", eval("proc { $_ = $F&.first; #{expr} }"))
-        end
-      end
-
-
-      def extract_blocks(expr)
-        begin_body = end_body = nil
-        expr, begin_body = extract_block(expr, "BEGIN")
-        expr, end_body   = extract_block(expr, "END")
-        [expr, begin_body, end_body]
-      end
-
-
-      def extract_block(expr, keyword)
-        start = expr.index(/#{keyword}\s*\{/)
-        return [expr, nil] unless start
-
-        # Find the opening brace
-        i = expr.index("{", start)
-        depth = 1
-        j     = i + 1
-        while j < expr.length && depth > 0
-          case expr[j]
-          when "{" then depth += 1
-          when "}" then depth -= 1
-          end
-          j += 1
-        end
-
-        body    = expr[(i + 1)..(j - 2)]
-        trimmed = expr[0...start] + expr[j..]
-        [trimmed, body]
-      end
-
-
-      SENT = Object.new.freeze # sentinel: eval already sent the reply
 
       def eval_send_expr(parts)
-        return parts unless @send_eval_proc
-        run_eval(@send_eval_proc, parts)
+        @send_evaluator.call(parts, @sock)
       end
 
 
       def eval_recv_expr(parts)
-        return parts unless @recv_eval_proc
-        run_eval(@recv_eval_proc, parts)
+        @recv_evaluator.call(parts, @sock)
       end
 
 
-      def run_eval(eval_proc, parts)
-        $F = parts
-        result = @sock.instance_exec(parts, &eval_proc)
-        return nil if result.nil?
-        return SENT if result.equal?(@sock)
-        return [result] if config.format == :marshal
-        case result
-        when Array  then result
-        when String then [result]
-        else             [result.to_str]
-        end
-      rescue => e
-        $stderr.puts "omq: eval error: #{e.message} (#{e.class})"
-        exit 3
-      end
+      SENT = ExpressionEvaluator::SENT
 
       # ── Logging ─────────────────────────────────────────────────────
 

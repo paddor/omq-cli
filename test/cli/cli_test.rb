@@ -1103,15 +1103,12 @@ end
 # ── BEGIN/END blocks ───────────────────────────────────────────────
 
 describe "extract_blocks" do
-  before do
-    @runner = OMQ::CLI::PushRunner.new(
-      make_config(type_name: "push"),
-      OMQ::PUSH
-    )
+  def ev(src = nil)
+    OMQ::CLI::ExpressionEvaluator.new(src, format: :ascii)
   end
 
   it "extracts BEGIN and END bodies" do
-    expr, begin_body, end_body = @runner.send(:extract_blocks,
+    expr, begin_body, end_body = ev.send(:extract_blocks,
       'BEGIN{ @s = 0 } @s += 1 END{ puts @s }')
     assert_equal " @s = 0 ", begin_body
     assert_equal " puts @s ", end_body
@@ -1119,7 +1116,7 @@ describe "extract_blocks" do
   end
 
   it "handles nested braces" do
-    expr, begin_body, end_body = @runner.send(:extract_blocks,
+    expr, begin_body, end_body = ev.send(:extract_blocks,
       'BEGIN{ @h = {} } $F END{ @h.each { |k,v| puts k } }')
     assert_equal " @h = {} ", begin_body
     assert_equal " @h.each { |k,v| puts k } ", end_body
@@ -1127,21 +1124,21 @@ describe "extract_blocks" do
   end
 
   it "returns nil for missing blocks" do
-    expr, begin_body, end_body = @runner.send(:extract_blocks, '$F')
+    expr, begin_body, end_body = ev.send(:extract_blocks, '$F')
     assert_nil begin_body
     assert_nil end_body
     assert_equal "$F", expr
   end
 
   it "handles BEGIN only" do
-    _, begin_body, end_body = @runner.send(:extract_blocks,
+    _, begin_body, end_body = ev.send(:extract_blocks,
       'BEGIN{ @x = 1 } $F')
     assert_equal " @x = 1 ", begin_body
     assert_nil end_body
   end
 
   it "handles END only" do
-    _, begin_body, end_body = @runner.send(:extract_blocks,
+    _, begin_body, end_body = ev.send(:extract_blocks,
       '$F END{ puts "done" }')
     assert_nil begin_body
     assert_equal ' puts "done" ', end_body

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Refactored
+
+- **Extract `ExpressionEvaluator`** — expression compilation (`extract_block`,
+  `extract_blocks`, BEGIN/END parsing, proc wrapping) and result normalisation
+  live in `OMQ::CLI::ExpressionEvaluator`. Removes duplicate code from
+  `BaseRunner`, `PipeRunner`, and both Ractor worker blocks. A shared
+  `ExpressionEvaluator.compile_inside_ractor` class method replaces the
+  identical inline parse lambdas that previously appeared in each Ractor block.
+
 ### Added (OMQ::Ractor integration)
 
 - **`-P` extended to recv-only socket types** (`pull`, `sub`, `gather`,
