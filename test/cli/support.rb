@@ -5,8 +5,19 @@ require_relative "../../lib/omq/cli"
 require "json"
 require "stringio"
 
-HAS_MSGPACK = begin; require "msgpack"; true; rescue LoadError; false; end
-HAS_ZSTD    = begin; require "zstd-ruby"; true; rescue LoadError; false; end
+HAS_MSGPACK = begin
+  require "msgpack"
+  true
+rescue LoadError
+  false
+end
+
+HAS_ZSTD = begin
+  require "zstd-ruby"
+  true
+rescue LoadError
+  false
+end
 
 # Suppress stderr/stdout from abort/puts during validation tests.
 def quietly

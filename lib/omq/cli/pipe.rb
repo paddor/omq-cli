@@ -2,16 +2,24 @@
 
 module OMQ
   module CLI
+    # Runner for the virtual "pipe" socket type (PULL -> eval -> PUSH).
+    # Supports sequential and parallel (Ractor-based) processing modes.
     class PipeRunner
+      # @return [Config] frozen CLI configuration
       attr_reader :config
 
 
+      # @param config [Config] frozen CLI configuration
       def initialize(config)
         @config = config
         @fmt    = Formatter.new(config.format, compress: config.compress)
       end
 
 
+      # Runs the pipe in sequential or parallel mode based on config.
+      #
+      # @param task [Async::Task] the parent async task
+      # @return [void]
       def call(task)
         if config.parallel
           run_parallel(task)

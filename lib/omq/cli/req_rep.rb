@@ -2,6 +2,7 @@
 
 module OMQ
   module CLI
+    # Runner for REQ sockets (synchronous request-reply client).
     class ReqRunner < BaseRunner
       private
 
@@ -34,6 +35,7 @@ module OMQ
     end
 
 
+    # Runner for REP sockets (synchronous request-reply server).
     class RepRunner < BaseRunner
       private
 

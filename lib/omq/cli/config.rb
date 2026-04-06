@@ -2,14 +2,20 @@
 
 module OMQ
   module CLI
+    # Socket type names that only send messages.
     SEND_ONLY = %w[pub push scatter radio].freeze
+    # Socket type names that only receive messages.
     RECV_ONLY = %w[sub pull gather dish].freeze
 
+
+    # A bind or connect endpoint with its URL and direction.
     Endpoint = Data.define(:url, :bind?) do
+      # @return [Boolean] true if this endpoint connects rather than binds
       def connect? = !bind?
     end
 
 
+    # Frozen, Ractor-shareable configuration data class for a CLI invocation.
     Config = Data.define(
       :type_name,
       :endpoints,
@@ -50,7 +56,9 @@ module OMQ
       :has_zstd,
       :stdin_is_tty,
     ) do
+      # @return [Boolean] true if this socket type only sends
       def send_only? = SEND_ONLY.include?(type_name)
+      # @return [Boolean] true if this socket type only receives
       def recv_only? = RECV_ONLY.include?(type_name)
     end
   end

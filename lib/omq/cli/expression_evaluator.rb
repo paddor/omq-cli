@@ -32,7 +32,10 @@ module OMQ
             @eval_proc = eval("proc { $_ = $F&.first; #{expr} }") # rubocop:disable Security/Eval
           end
         elsif fallback_proc
-          @eval_proc = proc { |msg| $_ = msg&.first; fallback_proc.call(msg) }
+          @eval_proc = proc { |msg|
+            $_ = msg&.first
+            fallback_proc.call(msg)
+          }
         end
       end
 
@@ -50,9 +53,12 @@ module OMQ
         return [result] if @format == :marshal
 
         case result
-        when Array  then result
-        when String then [result]
-        else             [result.to_str]
+        when Array
+          result
+        when String
+          [result]
+        else
+          [result.to_str]
         end
       rescue => e
         $stderr.puts "omq: eval error: #{e.message} (#{e.class})"
@@ -65,10 +71,14 @@ module OMQ
       #
       def self.normalize_result(result)
         case result
-        when nil    then nil
-        when Array  then result
-        when String then [result]
-        else             [result.to_s]
+        when nil
+          nil
+        when Array
+          result
+        when String
+          [result]
+        else
+          [result.to_s]
         end
       end
 
@@ -84,9 +94,12 @@ module OMQ
         extract = ->(expr, kw) {
           s = expr.index(/#{kw}\s*\{/)
           return [expr, nil] unless s
-          ci = expr.index("{", s); depth = 1; j = ci + 1
+          ci = expr.index("{", s)
+          depth = 1
+          j = ci + 1
           while j < expr.length && depth > 0
-            depth += 1 if expr[j] == "{"; depth -= 1 if expr[j] == "}"
+            depth += 1 if expr[j] == "{"
+            depth -= 1 if expr[j] == "}"
             j += 1
           end
           [expr[0...s] + expr[j..], expr[(ci + 1)..(j - 2)]]
@@ -126,8 +139,10 @@ module OMQ
         j     = i + 1
         while j < expr.length && depth > 0
           case expr[j]
-          when "{" then depth += 1
-          when "}" then depth -= 1
+          when "{"
+            depth += 1
+          when "}"
+            depth -= 1
           end
           j += 1
         end

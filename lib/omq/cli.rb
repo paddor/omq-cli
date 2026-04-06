@@ -24,13 +24,26 @@ require_relative "cli/pipe"
 module OMQ
 
   class << self
-    attr_reader :outgoing_proc, :incoming_proc
+    # @return [Proc, nil] registered outgoing message transform
+    attr_reader :outgoing_proc
+    # @return [Proc, nil] registered incoming message transform
+    attr_reader :incoming_proc
 
+    # Registers an outgoing message transform (used by -r scripts).
+    #
+    # @yield [Array<String>] message parts before sending
+    # @return [Proc]
     def outgoing(&block) = @outgoing_proc = block
+
+    # Registers an incoming message transform (used by -r scripts).
+    #
+    # @yield [Array<String>] message parts after receiving
+    # @return [Proc]
     def incoming(&block) = @incoming_proc = block
   end
 
 
+  # Command-line interface for OMQ socket operations.
   module CLI
     SOCKET_TYPE_NAMES = %w[
       req rep pub sub push pull pair dealer router
@@ -86,6 +99,10 @@ module OMQ
     end
 
 
+    # Main entry point: dispatches to keygen or socket runner.
+    #
+    # @param argv [Array<String>] command-line arguments
+    # @return [void]
     def run(argv = ARGV)
       case argv.first
       when "keygen"
@@ -172,7 +189,11 @@ module OMQ
       config = build_config(argv)
 
       require "omq"
-      require "omq/draft/all"
+      require "omq/rfc/clientserver"
+      require "omq/rfc/radiodish"
+      require "omq/rfc/scattergather"
+      require "omq/rfc/channel"
+      require "omq/rfc/p2p"
       require "async"
       require "json"
       require "console"

@@ -29,8 +29,10 @@ describe "pipe -P parallel execution" do
     Async do |task|
       # recv_timeout: 1 causes worker PULLs to exit after the last message,
       # which lets runner_task finish without an explicit stop signal.
-      src  = OMQ::PUSH.new(linger: 1); src.bind(work_url)
-      sink = OMQ::PULL.new(linger: 0, recv_timeout: 3); sink.bind(results_url)
+      src  = OMQ::PUSH.new(linger: 1)
+      src.bind(work_url)
+      sink = OMQ::PULL.new(linger: 0, recv_timeout: 3)
+      sink.bind(results_url)
 
       cfg = make_config(
         type_name:     "pipe",
@@ -69,8 +71,10 @@ describe "pipe -P parallel execution" do
     expr = "BEGIN{ @s=0 } @s += Integer($F.first); nil END{ [$_=@s.to_s] }"
 
     Async do |task|
-      src  = OMQ::PUSH.new(linger: 1); src.bind(work_url)
-      sink = OMQ::PULL.new(linger: 0, recv_timeout: 3); sink.bind(results_url)
+      src  = OMQ::PUSH.new(linger: 1)
+      src.bind(work_url)
+      sink = OMQ::PULL.new(linger: 0, recv_timeout: 3)
+      sink.bind(results_url)
 
       cfg = make_config(
         type_name:     "pipe",
@@ -112,7 +116,8 @@ describe "pull -P parallel recv-eval" do
     $stdout  = captured
 
     Async do |task|
-      src = OMQ::PUSH.new(linger: 1); src.bind(src_url)
+      src = OMQ::PUSH.new(linger: 1)
+      src.bind(src_url)
 
       # count: n_msgs terminates the collect loop after receiving all results,
       # then w.close injects nil to the workers so they exit promptly.
@@ -150,7 +155,8 @@ describe "pull -P parallel recv-eval" do
     $stdout  = captured
 
     Async do |task|
-      src = OMQ::PUSH.new(linger: 1); src.bind(src_url)
+      src = OMQ::PUSH.new(linger: 1)
+      src.bind(src_url)
 
       # 10 inputs but only 5 even numbers pass the filter → count: 5
       cfg = make_config(

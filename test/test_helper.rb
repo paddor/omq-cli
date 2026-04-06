@@ -3,7 +3,11 @@
 require "minitest/autorun"
 require "securerandom"
 require "omq"
-require "omq/draft/all"
+require "omq/rfc/clientserver"
+require "omq/rfc/radiodish"
+require "omq/rfc/scattergather"
+require "omq/rfc/channel"
+require "omq/rfc/p2p"
 require "omq/ractor"
 require "async"
 

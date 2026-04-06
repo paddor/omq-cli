@@ -4,7 +4,12 @@ require_relative "support"
 require "nuckle"
 require "protocol/zmtp/mechanism/curve"
 
-HAS_RBNACL = begin; require "rbnacl"; true; rescue LoadError; false; end
+HAS_RBNACL = begin
+  require "rbnacl"
+  true
+rescue LoadError
+  false
+end
 
 describe "load_curve_crypto" do
   if HAS_RBNACL

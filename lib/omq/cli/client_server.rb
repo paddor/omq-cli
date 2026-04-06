@@ -2,6 +2,7 @@
 
 module OMQ
   module CLI
+    # Runner for SERVER and PEER sockets (draft; routing-id-based messaging).
     class ServerRunner < BaseRunner
       include RoutingHelper
 

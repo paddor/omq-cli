@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Fixed
+
+- **Fix broken Gemfile** — remove deleted `omq-draft`, add all RFC gems
+  with `OMQ_DEV` path resolution.
+- **Fix CURVE API calls** — `Curve.server` and `Curve.client` now use
+  keyword arguments to match the updated protocol-zmtp API.
+- **Replace `require "omq/draft/all"`** with explicit RFC requires
+  (`omq/rfc/clientserver`, `radiodish`, `scattergather`, `channel`, `p2p`).
+
+### Changed
+
+- YARD documentation on all public methods and classes.
+- Code style: two blank lines between methods and constants.
+
 ### Refactored
 
 - **`req_rep.rb` + `pair.rb` method extraction** — `ReqRunner#run_loop` (23 lines)

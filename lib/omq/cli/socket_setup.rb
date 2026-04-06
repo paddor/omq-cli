@@ -73,8 +73,10 @@ module OMQ
           server_key = Protocol::ZMTP::Z85.decode(server_key_z85)
           client_key = crypto::PrivateKey.generate
           sock.mechanism = Protocol::ZMTP::Mechanism::Curve.client(
-            client_key.public_key.to_s, client_key.to_s,
-            server_key: server_key, crypto: crypto
+            public_key: client_key.public_key.to_s,
+            secret_key: client_key.to_s,
+            server_key: server_key,
+            crypto: crypto
           )
         elsif server_mode
           if ENV["OMQ_SERVER_PUBLIC"] && ENV["OMQ_SERVER_SECRET"]
@@ -86,7 +88,9 @@ module OMQ
             server_sec = key.to_s
           end
           sock.mechanism = Protocol::ZMTP::Mechanism::Curve.server(
-            server_pub, server_sec, crypto: crypto
+            public_key: server_pub,
+            secret_key: server_sec,
+            crypto: crypto
           )
           $stderr.puts "OMQ_SERVER_KEY='#{Protocol::ZMTP::Z85.encode(server_pub)}'"
         end

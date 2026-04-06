@@ -2,6 +2,7 @@
 
 module OMQ
   module CLI
+    # Runner for RADIO sockets (draft; group-based publish).
     class RadioRunner < BaseRunner
       def run_loop(task) = run_send_logic
 
@@ -20,6 +21,7 @@ module OMQ
     end
 
 
+    # Runner for DISH sockets (draft; group-based subscribe).
     class DishRunner < BaseRunner
       def run_loop(task)
         config.parallel ? run_parallel_recv(task) : run_recv_logic

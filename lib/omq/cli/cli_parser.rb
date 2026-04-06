@@ -256,6 +256,10 @@ module OMQ
       end
 
 
+      # Parses +argv+ and returns a mutable options hash.
+      #
+      # @param argv [Array<String>] command-line arguments (mutated in place)
+      # @return [Hash] parsed options
       def parse(argv)
         opts      = DEFAULT_OPTS.transform_values { |v| v.is_a?(Array) ? v.dup : v }
         pipe_side = nil  # nil = legacy positional mode; :in/:out = modal
@@ -270,8 +274,10 @@ module OMQ
           o.on("-c", "--connect URL", "Connect to endpoint (repeatable)") { |v|
             ep = Endpoint.new(v, false)
             case pipe_side
-            when :in  then opts[:in_endpoints] << ep
-            when :out then opts[:out_endpoints] << ep
+            when :in
+              opts[:in_endpoints] << ep
+            when :out
+              opts[:out_endpoints] << ep
             else
               opts[:endpoints] << ep
               opts[:connects]  << v
@@ -280,8 +286,10 @@ module OMQ
           o.on("-b", "--bind URL", "Bind to endpoint (repeatable)") { |v|
             ep = Endpoint.new(v, true)
             case pipe_side
-            when :in  then opts[:in_endpoints] << ep
-            when :out then opts[:out_endpoints] << ep
+            when :in
+              opts[:in_endpoints] << ep
+            when :out
+              opts[:out_endpoints] << ep
             else
               opts[:endpoints] << ep
               opts[:binds]     << v
@@ -367,9 +375,12 @@ module OMQ
             puts "omq-cli #{OMQ::CLI::VERSION} (omq #{OMQ::VERSION})"
             exit
           }
-          o.on("-h")             { puts o; exit }
-          o.on("--help")        { CLI.page "#{o}\n#{EXAMPLES}"; exit }
-          o.on("--examples")    { CLI.page EXAMPLES; exit }
+          o.on("-h")             { puts o
+                                   exit }
+          o.on("--help")        { CLI.page "#{o}\n#{EXAMPLES}"
+                                   exit }
+          o.on("--examples")    { CLI.page EXAMPLES
+                                   exit }
 
           o.separator "\nExit codes: 0 = success, 1 = error, 2 = timeout"
         end
@@ -402,6 +413,10 @@ module OMQ
       end
 
 
+      # Validates option combinations, aborting on invalid combos.
+      #
+      # @param opts [Hash] parsed options from {#parse}
+      # @return [void]
       def validate!(opts)
         return if opts[:type_name].nil?  # bare script mode
 

@@ -5,12 +5,18 @@ module OMQ
     # Handles encoding/decoding messages in the configured format,
     # plus optional Zstandard compression.
     class Formatter
+      # @param format [Symbol] wire format (:ascii, :quoted, :raw, :jsonl, :msgpack, :marshal)
+      # @param compress [Boolean] whether to apply Zstandard compression per frame
       def initialize(format, compress: false)
         @format   = format
         @compress = compress
       end
 
 
+      # Encodes message parts into a printable string for output.
+      #
+      # @param parts [Array<String>] message frames
+      # @return [String] formatted output line
       def encode(parts)
         case @format
         when :ascii
@@ -31,6 +37,10 @@ module OMQ
       end
 
 
+      # Decodes a formatted input line into message parts.
+      #
+      # @param line [String] input line (newline-terminated)
+      # @return [Array<String>] message frames
       def decode(line)
         case @format
         when :ascii, :marshal
@@ -47,6 +57,10 @@ module OMQ
       end
 
 
+      # Decodes one Marshal object from the given IO stream.
+      #
+      # @param io [IO] input stream
+      # @return [Object, nil] deserialized object, or nil on EOF
       def decode_marshal(io)
         Marshal.load(io)
       rescue EOFError, TypeError
@@ -54,6 +68,10 @@ module OMQ
       end
 
 
+      # Decodes one MessagePack object from the given IO stream.
+      #
+      # @param io [IO] input stream
+      # @return [Object, nil] deserialized object, or nil on EOF
       def decode_msgpack(io)
         @msgpack_unpacker ||= MessagePack::Unpacker.new(io)
         @msgpack_unpacker.read
@@ -62,11 +80,19 @@ module OMQ
       end
 
 
+      # Compresses each frame with Zstandard if compression is enabled.
+      #
+      # @param parts [Array<String>] message frames
+      # @return [Array<String>] optionally compressed frames
       def compress(parts)
         @compress ? parts.map { |p| Zstd.compress(p) } : parts
       end
 
 
+      # Decompresses each frame with Zstandard if compression is enabled.
+      #
+      # @param parts [Array<String>] possibly compressed message frames
+      # @return [Array<String>] decompressed frames
       def decompress(parts)
         @compress ? parts.map { |p| Zstd.decompress(p) } : parts
       end

@@ -2,6 +2,7 @@
 
 module OMQ
   module CLI
+    # Runner for PAIR, DEALER, and CHANNEL sockets (bidirectional messaging).
     class PairRunner < BaseRunner
       private
 

@@ -108,8 +108,10 @@ n_rows = plot.n_rows
   fraction = (decade - log_min).to_f / (log_max - log_min)
   row      = n_rows - 1 - (fraction * (n_rows - 1)).round
   label = case
-          when decade >= 6 then "%.0fM" % (10**decade / 1e6)
-          when decade >= 3 then "%.0fk" % (10**decade / 1e3)
+          when decade >= 6
+            "%.0fM" % (10**decade / 1e6)
+          when decade >= 3
+            "%.0fk" % (10**decade / 1e3)
           else                   "%.0f" % 10**decade
           end
   plot.annotate_row!(:l, row, label)

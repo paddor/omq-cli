@@ -9,6 +9,10 @@ module OMQ
     # an inproc PULL back to the main task for output.
     #
     class ParallelRecvRunner
+      # @param klass [Class] OMQ socket class for worker input sockets
+      # @param config [Config] frozen CLI configuration
+      # @param fmt [Formatter] message formatter
+      # @param output_fn [Method] callable for writing output
       def initialize(klass, config, fmt, output_fn)
         @klass     = klass
         @config    = config
@@ -17,6 +21,10 @@ module OMQ
       end
 
 
+      # Spawns N Ractor workers, distributes incoming messages, and collects results.
+      #
+      # @param task [Async::Task] parent async task
+      # @return [void]
       def run(task)
         cfg       = @config
         n_workers = cfg.parallel
@@ -94,6 +102,7 @@ module OMQ
           end
         end
 
+
         # Collect loop: drain inproc PULL → output
         n_count = cfg.count
         if n_count && n_count > 0
@@ -109,6 +118,7 @@ module OMQ
             @output_fn.call(parts)
           end
         end
+
 
         # Inject nil into each worker's input port so it exits its loop
         # without waiting for recv_timeout (workers don't self-terminate

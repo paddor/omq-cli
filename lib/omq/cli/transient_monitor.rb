@@ -10,6 +10,10 @@ module OMQ
     # task (send-only) or closes the read side of the socket (recv side).
     #
     class TransientMonitor
+      # @param sock [Object] the OMQ socket to monitor
+      # @param config [Config] frozen CLI configuration
+      # @param task [Async::Task] parent async task
+      # @param log_fn [Method] callable for verbose logging
       def initialize(sock, config, task, log_fn)
         @barrier = Async::Promise.new
         task.async do

@@ -2,6 +2,7 @@
 
 module OMQ
   module CLI
+    # Runner for ROUTER sockets (identity-aware async routing).
     class RouterRunner < BaseRunner
       include RoutingHelper
 

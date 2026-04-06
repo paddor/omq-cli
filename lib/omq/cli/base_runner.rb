@@ -2,10 +2,16 @@
 
 module OMQ
   module CLI
+    # Template runner base class for all socket-type CLI runners.
+    # Subclasses override {#run_loop} to implement socket-specific behaviour.
     class BaseRunner
+      # @return [Config] frozen CLI configuration
+      # @return [Object] the OMQ socket instance
       attr_reader :config, :sock
 
 
+      # @param config [Config] frozen CLI configuration
+      # @param socket_class [Class] OMQ socket class to instantiate (e.g. OMQ::PUSH)
       def initialize(config, socket_class)
         @config = config
         @klass  = socket_class
@@ -13,6 +19,10 @@ module OMQ
       end
 
 
+      # Runs the full lifecycle: socket setup, peer wait, BEGIN/END blocks, and the main loop.
+      #
+      # @param task [Async::Task] the parent async task
+      # @return [void]
       def call(task)
         setup_socket
         maybe_start_transient_monitor(task)
@@ -33,6 +43,7 @@ module OMQ
       def run_loop(task)
         raise NotImplementedError
       end
+
 
       # ── Socket creation ─────────────────────────────────────────────
 
@@ -55,6 +66,7 @@ module OMQ
         SocketSetup.attach(@sock, config, verbose: config.verbose)
       end
 
+
       # ── Transient disconnect monitor ────────────────────────────────
 
 
@@ -69,6 +81,7 @@ module OMQ
         @transient_monitor&.ready!
       end
 
+
       # ── BEGIN / END blocks ──────────────────────────────────────────
 
 
@@ -82,6 +95,7 @@ module OMQ
         @sock.instance_exec(&@send_end_proc) if @send_end_proc
         @sock.instance_exec(&@recv_end_proc) if @recv_end_proc
       end
+
 
       # ── Peer wait with grace period ─────────────────────────────────
 
@@ -117,6 +131,7 @@ module OMQ
         sleep(ri.is_a?(Range) ? ri.begin : ri)
       end
 
+
       # ── Timeout helper ──────────────────────────────────────────────
 
 
@@ -127,6 +142,7 @@ module OMQ
           yield
         end
       end
+
 
       # ── Socket setup ────────────────────────────────────────────────
 
@@ -144,6 +160,7 @@ module OMQ
       def setup_curve
         SocketSetup.setup_curve(@sock, config)
       end
+
 
       # ── Shared loop bodies ──────────────────────────────────────────
 
@@ -238,6 +255,7 @@ module OMQ
         end
       end
 
+
       # ── Message I/O ─────────────────────────────────────────────────
 
 
@@ -283,8 +301,10 @@ module OMQ
 
       def read_stdin_input
         case config.format
-        when :msgpack then @fmt.decode_msgpack($stdin)
-        when :marshal then @fmt.decode_marshal($stdin)
+        when :msgpack
+          @fmt.decode_msgpack($stdin)
+        when :marshal
+          @fmt.decode_marshal($stdin)
         when :raw
           data = $stdin.read
           data.nil? || data.empty? ? nil : [data]
@@ -321,6 +341,7 @@ module OMQ
         $stdout.write(@fmt.encode(parts))
         $stdout.flush
       end
+
 
       # ── Eval ────────────────────────────────────────────────────────
 
@@ -364,6 +385,7 @@ module OMQ
 
 
       SENT = ExpressionEvaluator::SENT
+
 
       # ── Logging ─────────────────────────────────────────────────────
 
