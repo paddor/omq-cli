@@ -40,6 +40,8 @@ module OMQ
       :heartbeat_ivl,
       :send_hwm,
       :recv_hwm,
+      :sndbuf,
+      :rcvbuf,
       :conflate,
       :compress,
       :send_expr,

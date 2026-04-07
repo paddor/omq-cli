@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.4.0 — 2026-04-07
+
+### Added
+
+- **`--sndbuf` / `--rcvbuf` options** — set `SO_SNDBUF` and `SO_RCVBUF` kernel
+  buffer sizes. Accepts plain bytes or suffixed values (`4K`, `1M`).
+- **Pipe FIFO ordering system test** — verifies sequential source batches are
+  never interleaved through a pipe.
+- **Pipe producer-first system test** — verifies messages are delivered when
+  the producer finishes before the consumer connects.
+
+### Changed
+
+- **Message traces moved to monitor events** — `-vvv` traces now use
+  `Socket#monitor(verbose: true)` instead of inline `trace_send`/`trace_recv`
+  calls, ensuring correct ordering with connection lifecycle events.
+
+### Fixed
+
+- **Test helper `make_config`** — added missing `send_hwm`, `recv_hwm`,
+  `sndbuf`, `rcvbuf` fields and changed `verbose` default from `false` to `0`.
+
 ## 0.3.1 — 2026-04-07
 
 ### Added

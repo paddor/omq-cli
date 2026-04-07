@@ -215,6 +215,8 @@ module OMQ
         heartbeat_ivl:    nil,
         send_hwm:         nil,
         recv_hwm:         nil,
+        sndbuf:           nil,
+        rcvbuf:           nil,
         conflate:         false,
         compress:         false,
         send_expr:        nil,
@@ -340,6 +342,8 @@ module OMQ
           o.on("--recv-maxsz COUNT", Integer, "Max inbound message size in bytes (larger messages dropped)") { |v| opts[:recv_maxsz] = v }
           o.on("--send-hwm N", Integer, "Send high water mark (default 1000, 0=unbounded)") { |v| opts[:send_hwm] = v }
           o.on("--recv-hwm N", Integer, "Recv high water mark (default 1000, 0=unbounded)") { |v| opts[:recv_hwm] = v }
+          o.on("--sndbuf N", "SO_SNDBUF kernel buffer size (e.g. 4K, 1M)") { |v| opts[:sndbuf] = parse_byte_size(v) }
+          o.on("--rcvbuf N", "SO_RCVBUF kernel buffer size (e.g. 4K, 1M)") { |v| opts[:rcvbuf] = parse_byte_size(v) }
 
           o.separator "\nDelivery:"
           o.on("--conflate", "Keep only last message per subscriber (PUB/RADIO)") { opts[:conflate] = true }
@@ -414,6 +418,25 @@ module OMQ
         opts[:out_endpoints].map!(&normalize_ep)
 
         opts
+      end
+
+
+      # Parses a byte size string with optional K/M suffix.
+      #
+      # @param str [String] e.g. "4096", "4K", "1M"
+      # @return [Integer] size in bytes
+      #
+      def parse_byte_size(str)
+        case str
+        when /\A(\d+)[kK]\z/
+          $1.to_i * 1024
+        when /\A(\d+)[mM]\z/
+          $1.to_i * 1024 * 1024
+        when /\A\d+\z/
+          str.to_i
+        else
+          abort "invalid byte size: #{str} (use e.g. 4096, 4K, 1M)"
+        end
       end
 
 

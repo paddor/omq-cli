@@ -596,6 +596,67 @@ fi
 kill $PIPE_PID $SRC_PID 2>/dev/null || true
 wait 2>/dev/null || true
 
+# ── Pipe FIFO: multiple source batches must not interleave ──────────
+
+echo "Pipe FIFO ordering:"
+FIFO_SRC="ipc://@omq_fifo_src_$$"
+FIFO_DST="ipc://@omq_fifo_dst_$$"
+# Pipe with send-hwm=1 to create backpressure.
+$OMQ pipe -c $FIFO_SRC -c $FIFO_DST --send-hwm 1 --reconnect-ivl 0.1 -t 10 2>>"$STDERR_LOG" &
+FIFO_PIPE_PID=$!
+sleep 0.3
+
+# Send batch A (messages A0..A9, 64KB each) then batch B (B0..B9).
+ruby -e '10.times { |i| puts "A#{i}#{"X" * 65536}" }' \
+  | $OMQ push -b $FIFO_SRC -t 5 2>>"$STDERR_LOG"
+sleep 0.3
+ruby -e '10.times { |i| puts "B#{i}#{"Y" * 65536}" }' \
+  | $OMQ push -b $FIFO_SRC -t 5 2>>"$STDERR_LOG"
+sleep 0.3
+
+# Consumer pulls 10 messages — should be A0..A9 in order, no B's mixed in.
+$OMQ pull -b $FIFO_DST --recv-hwm 1 -n 10 -t 5 > $TMPDIR/fifo_out.txt 2>>"$STDERR_LOG" &
+FIFO_C_PID=$!
+if wait $FIFO_C_PID 2>/dev/null; then
+  # Extract the prefix before the padding (A0, A1, ..., A9)
+  FIFO_PREFIXES=$(sed 's/[XY].*//' $TMPDIR/fifo_out.txt | tr '\n' ',')
+  # All 10 should be A-batch, in order
+  if [ "$FIFO_PREFIXES" = "A0,A1,A2,A3,A4,A5,A6,A7,A8,A9," ]; then
+    pass "pipe preserves FIFO across source batches"
+  else
+    fail "pipe preserves FIFO across source batches" "A0,A1,...,A9" "$FIFO_PREFIXES"
+  fi
+else
+  fail "pipe preserves FIFO across source batches" "10 messages" "timeout"
+fi
+kill $FIFO_PIPE_PID 2>/dev/null || true
+wait 2>/dev/null || true
+
+# ── Pipe: producer before consumer (message delivery) ──────────────
+
+echo "Pipe producer-first:"
+PF_SRC="ipc://@omq_pf_src_$$"
+PF_DST="ipc://@omq_pf_dst_$$"
+$OMQ pipe -c $PF_SRC -c $PF_DST --send-hwm 1 --reconnect-ivl 0.1 -t 10 2>>"$STDERR_LOG" &
+PF_PIPE_PID=$!
+sleep 0.3
+
+# Producer sends BEFORE consumer exists — pipe must buffer and deliver.
+seq 5 | $OMQ push -b $PF_SRC -t 5 2>>"$STDERR_LOG"
+sleep 0.5
+
+# Consumer connects AFTER producer has exited.
+$OMQ pull -b $PF_DST -n 5 -t 5 > $TMPDIR/pf_out.txt 2>>"$STDERR_LOG" &
+PF_C_PID=$!
+if wait $PF_C_PID 2>/dev/null; then
+  PF_CONTENT=$(cat $TMPDIR/pf_out.txt | tr '\n' ',')
+  check "pipe delivers all messages when producer finishes first" "1,2,3,4,5," "$PF_CONTENT"
+else
+  fail "pipe delivers all messages when producer finishes first" "5 messages" "timeout"
+fi
+kill $PF_PIPE_PID 2>/dev/null || true
+wait 2>/dev/null || true
+
 # ── Summary ─────────────────────────────────────────────────────────
 
 echo

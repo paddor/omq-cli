@@ -297,7 +297,6 @@ module OMQ
         return if parts.empty?
         parts = [Marshal.dump(parts)] if config.format == :marshal
         parts = @fmt.compress(parts)
-        trace_send(parts)
         @sock.send(parts)
         transient_ready!
       end
@@ -308,7 +307,6 @@ module OMQ
         return nil if raw.nil?
         parts = @fmt.decompress(raw)
         parts = Marshal.load(parts.first) if config.format == :marshal
-        trace_recv(parts)
         transient_ready!
         parts
       end
@@ -432,25 +430,21 @@ module OMQ
 
 
       # -vv: log connect/disconnect/retry/timeout events via Socket#monitor
+      # -vvv: also log message sent/received traces
       def start_event_monitor
-        @sock.monitor do |event|
-          ep = event.endpoint ? " #{event.endpoint}" : ""
-          detail = event.detail ? " #{event.detail}" : ""
-          $stderr.write("omq: #{event.type}#{ep}#{detail}\n")
+        verbose = config.verbose >= 3
+        @sock.monitor(verbose: verbose) do |event|
+          case event.type
+          when :message_sent
+            $stderr.write("omq: >> #{msg_preview(event.detail[:parts])}\n")
+          when :message_received
+            $stderr.write("omq: << #{msg_preview(event.detail[:parts])}\n")
+          else
+            ep = event.endpoint ? " #{event.endpoint}" : ""
+            detail = event.detail ? " #{event.detail}" : ""
+            $stderr.write("omq: #{event.type}#{ep}#{detail}\n")
+          end
         end
-      end
-
-
-      # -vvv: log first 10 bytes of each message part
-      def trace_send(parts)
-        return unless config.verbose >= 3
-        $stderr.write("omq: >> #{msg_preview(parts)}\n")
-      end
-
-
-      def trace_recv(parts)
-        return unless config.verbose >= 3
-        $stderr.write("omq: << #{msg_preview(parts)}\n")
       end
 
 

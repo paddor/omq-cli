@@ -80,6 +80,8 @@ module OMQ
         sock.heartbeat_interval = config.heartbeat_ivl if config.heartbeat_ivl
         sock.send_hwm           = config.send_hwm      if config.send_hwm
         sock.recv_hwm           = config.recv_hwm      if config.recv_hwm
+        sock.sndbuf             = config.sndbuf        if config.sndbuf
+        sock.rcvbuf             = config.rcvbuf        if config.rcvbuf
       end
 
 
@@ -106,17 +108,14 @@ module OMQ
 
       def sequential_message_loop
         n = config.count
-        trace = config.verbose >= 3
         i = 0
         loop do
           parts = @pull.receive
           break if parts.nil?
           parts = @fmt.decompress(parts)
-          $stderr.write("omq: << #{msg_preview(parts)}\n") if trace
           parts = eval_recv_expr(parts)
           if parts && !parts.empty?
             out = @fmt.compress(parts)
-            $stderr.write("omq: >> #{msg_preview(out)}\n") if trace
             @push.send(out)
           end
           i += 1
@@ -295,11 +294,19 @@ module OMQ
 
 
       def start_event_monitors
+        verbose = config.verbose >= 3
         [@pull, @push].each do |sock|
-          sock.monitor do |event|
-            ep = event.endpoint ? " #{event.endpoint}" : ""
-            detail = event.detail ? " #{event.detail}" : ""
-            $stderr.write("omq: #{event.type}#{ep}#{detail}\n")
+          sock.monitor(verbose: verbose) do |event|
+            case event.type
+            when :message_sent
+              $stderr.write("omq: >> #{msg_preview(event.detail[:parts])}\n")
+            when :message_received
+              $stderr.write("omq: << #{msg_preview(event.detail[:parts])}\n")
+            else
+              ep = event.endpoint ? " #{event.endpoint}" : ""
+              detail = event.detail ? " #{event.detail}" : ""
+              $stderr.write("omq: #{event.type}#{ep}#{detail}\n")
+            end
           end
         end
       end
