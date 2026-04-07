@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.1 — 2026-04-07
+
+### Fixed
+
+- **Pipe `-P` preresolves TCP hostnames** — DNS resolution happens on the
+  main thread before spawning Ractors, avoiding `Ractor::IsolationError`
+  on `Resolv::DefaultResolver`. All resolved addresses (IPv4 + IPv6) are
+  passed to workers.
+
 ## 0.7.0 — 2026-04-07
 
 ### Changed
