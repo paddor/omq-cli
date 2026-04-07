@@ -11,6 +11,9 @@
 
 ### Fixed
 
+- **`omq pipe` slow reconnection** — sequential `peer_connected.wait` calls
+  blocked receiving until both PULL and PUSH peers connected in order. Now
+  waits concurrently using `Kernel#Barrier`.
 - **`-i` on recv-only sockets** — `pull -i 0.2` rate-limits receiving to
   one message every 200 ms using `Async::Loop.quantized`. Works on all
   recv-only socket types (pull, sub, gather, dish).

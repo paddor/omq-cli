@@ -59,8 +59,10 @@ module OMQ
         compile_expr
         @sock = @pull  # for eval instance_exec
         with_timeout(config.timeout) do
-          @push.peer_connected.wait
-          @pull.peer_connected.wait
+          Barrier do |barrier|
+            barrier.async { @push.peer_connected.wait }
+            barrier.async { @pull.peer_connected.wait }
+          end
         end
         setup_sequential_transient(task)
         @sock.instance_exec(&@recv_begin_proc) if @recv_begin_proc
@@ -143,9 +145,11 @@ module OMQ
 
       def wait_for_pairs(pairs)
         with_timeout(config.timeout) do
-          pairs.each do |pull, push|
-            push.peer_connected.wait
-            pull.peer_connected.wait
+          Barrier do |barrier|
+            pairs.each do |pull, push|
+              barrier.async { push.peer_connected.wait }
+              barrier.async { pull.peer_connected.wait }
+            end
           end
         end
       end
