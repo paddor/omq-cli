@@ -18,6 +18,7 @@ require_relative "cli/req_rep"
 require_relative "cli/pair"
 require_relative "cli/router_dealer"
 require_relative "cli/client_server"
+require_relative "cli/pipe_worker"
 require_relative "cli/pipe"
 
 module OMQ
