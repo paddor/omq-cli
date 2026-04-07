@@ -132,6 +132,8 @@ module OMQ
       def run_parallel(task)
         OMQ.freeze_for_ractors!
         in_eps, out_eps = resolve_endpoints
+        in_eps  = preresolve_tcp(in_eps)
+        out_eps = preresolve_tcp(out_eps)
         workers = spawn_workers(config, in_eps, out_eps)
         workers.each do |w|
           w.join
@@ -238,6 +240,25 @@ module OMQ
 
 
       # ── Shared helpers ────────────────────────────────────────────────
+
+
+      # Resolves TCP hostnames to IP addresses so Ractors don't touch
+      # Resolv::DefaultResolver (which is not shareable).
+      #
+      def preresolve_tcp(endpoints)
+        endpoints.map do |ep|
+          url = ep.url
+          if url.start_with?("tcp://")
+            host, port = OMQ::Transport::TCP.parse_endpoint(url)
+            addr = Addrinfo.getaddrinfo(host, port, nil, :STREAM).first
+            ip = addr.ip_address
+            ip = "[#{ip}]" if ip.include?(":")
+            Endpoint.new("tcp://#{ip}:#{addr.ip_port}", ep.bind?)
+          else
+            ep
+          end
+        end
+      end
 
 
       def with_timeout(seconds)
