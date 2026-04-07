@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.3 — 2026-04-07
+
+### Fixed
+
+- **HTTPS debug endpoint uses localhost.rb** — `OMQ_DEBUG_URI=https://...` now
+  uses `Localhost::Authority` for self-signed TLS, fixing "no shared cipher"
+  errors when accessing the async-debug web UI in a browser.
+
 ## 0.5.2 — 2026-04-07
 
 ### Fixed
