@@ -246,14 +246,15 @@ module OMQ
       # Resolv::DefaultResolver (which is not shareable).
       #
       def preresolve_tcp(endpoints)
-        endpoints.map do |ep|
+        endpoints.flat_map do |ep|
           url = ep.url
           if url.start_with?("tcp://")
             host, port = OMQ::Transport::TCP.parse_endpoint(url)
-            addr = Addrinfo.getaddrinfo(host, port, nil, :STREAM).first
-            ip = addr.ip_address
-            ip = "[#{ip}]" if ip.include?(":")
-            Endpoint.new("tcp://#{ip}:#{addr.ip_port}", ep.bind?)
+            Addrinfo.getaddrinfo(host, port, nil, :STREAM).map do |addr|
+              ip = addr.ip_address
+              ip = "[#{ip}]" if ip.include?(":")
+              Endpoint.new("tcp://#{ip}:#{addr.ip_port}", ep.bind?)
+            end
           else
             ep
           end
