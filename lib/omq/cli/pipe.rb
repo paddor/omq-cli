@@ -60,8 +60,8 @@ module OMQ
         @sock = @pull  # for eval instance_exec
         with_timeout(config.timeout) do
           Barrier do |barrier|
-            barrier.async { @push.peer_connected.wait }
-            barrier.async { @pull.peer_connected.wait }
+            barrier.async(annotation: "wait push peer") { @push.peer_connected.wait }
+            barrier.async(annotation: "wait pull peer") { @pull.peer_connected.wait }
           end
         end
         setup_sequential_transient(task)
@@ -147,8 +147,8 @@ module OMQ
         with_timeout(config.timeout) do
           Barrier do |barrier|
             pairs.each do |pull, push|
-              barrier.async { push.peer_connected.wait }
-              barrier.async { pull.peer_connected.wait }
+              barrier.async(annotation: "wait push peer") { push.peer_connected.wait }
+              barrier.async(annotation: "wait pull peer") { pull.peer_connected.wait }
             end
           end
         end
