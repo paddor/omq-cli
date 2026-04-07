@@ -1,10 +1,19 @@
 # Changelog
 
+## 0.5.1 — 2026-04-07
+
+### Fixed
+
+- **Move async-debug from runtime to dev dependency** — async-debug depends on
+  `openssl >= 3.0` which conflicts with Ruby's default openssl gem on CI.
+  Now only loaded when `OMQ_DEBUG_URI` is set, with a `LoadError` guard and
+  install hint.
+
 ## 0.5.0 — 2026-04-07
 
 ### Changed
 
-- **rbnacl, zstd-ruby, msgpack, and async-debug are now fixed dependencies** —
+- **rbnacl, zstd-ruby, and msgpack are now fixed dependencies** —
   no more runtime detection or conditional test guards.
 - **`--curve-crypto` renamed to `--crypto`** — applies to CURVE and future
   mechanisms (e.g. BLAKE3ZMQ). Env var renamed from `OMQ_CURVE_CRYPTO` to
