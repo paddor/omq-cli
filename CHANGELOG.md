@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.4 — 2026-04-07
+
+### Fixed
+
+- **Fix `--compress` crash** — `Zstd` constant was uninitialized because
+  `zstd-ruby` was no longer required at startup. Now required when `-z` is parsed.
+- **Fix `--msgpack` crash** — same issue. Now required when `--msgpack` is parsed.
+
 ## 0.5.3 — 2026-04-07
 
 ### Fixed
