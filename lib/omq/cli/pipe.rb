@@ -42,7 +42,7 @@ module OMQ
 
 
       def attach_endpoints(sock, endpoints)
-        SocketSetup.attach_endpoints(sock, endpoints)
+        SocketSetup.attach_endpoints(sock, endpoints, verbose: config.verbose)
       end
 
 

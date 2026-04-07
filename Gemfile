@@ -19,4 +19,6 @@ gem "nuckle",               path: ENV["OMQ_DEV"] ? "../nuckle" : nil
 
 if ENV["OMQ_DEV"]
   gem "rbnacl", "~> 7.0"
+  gem "zstd-ruby"
+  gem "async-debug"
 end

@@ -40,8 +40,16 @@ module OMQ
       # Bind/connect +sock+ from an Array of Endpoint objects.
       # Used by PipeRunner, which works with structured endpoint lists.
       #
-      def self.attach_endpoints(sock, endpoints)
-        endpoints.each { |ep| ep.bind? ? sock.bind(ep.url) : sock.connect(ep.url) }
+      def self.attach_endpoints(sock, endpoints, verbose: false)
+        endpoints.each do |ep|
+          if ep.bind?
+            sock.bind(ep.url)
+            $stderr.puts "Bound to #{sock.last_endpoint}" if verbose
+          else
+            sock.connect(ep.url)
+            $stderr.puts "Connecting to #{ep.url}" if verbose
+          end
+        end
       end
 
 

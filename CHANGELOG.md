@@ -2,6 +2,13 @@
 
 ## 0.3.1 — 2026-04-07
 
+### Added
+
+- **`OMQ_DEBUG` env var** — starts async-debug web UI on
+  `https://localhost:5050` (or custom port via `OMQ_DEBUG=PORT`).
+- **`omq pipe -v` verbose logging** — `pipe` now prints "Bound to …" /
+  "Connecting to …" on stderr when `-v` is set.
+
 ### Fixed
 
 - **`-i` on recv-only sockets** — `pull -i 0.2` rate-limits receiving to

@@ -206,9 +206,17 @@ module OMQ
 
       Console.logger = Console::Logger.new(Console::Output::Null.new) unless config.verbose
 
+      debug_ep = nil
+
+      if ENV["OMQ_DEBUG_URI"]
+        require "async/debug"
+        debug_ep = Async::HTTP::Endpoint.parse ENV["OMQ_DEBUG_URI"]
+      end
+
       if config.type_name.nil?
         Object.include(OMQ) unless Object.include?(OMQ)
-        Async do
+        Async annotation: 'omq' do
+          Async::Debug.serve(endpoint: debug_ep) if debug_ep
           config.scripts.each { |s| load_script(s) }
         rescue => e
           $stderr.puts "omq: #{e.message}"
@@ -219,7 +227,8 @@ module OMQ
 
       runner_class, socket_sym = RUNNER_MAP.fetch(config.type_name)
 
-      Async do |task|
+      Async annotation: 'omq' do |task|
+        Async::Debug.serve(endpoint: debug_ep) if debug_ep
         config.scripts.each { |s| load_script(s) }
         runner = if socket_sym
                    runner_class.new(config, OMQ.const_get(socket_sym))
