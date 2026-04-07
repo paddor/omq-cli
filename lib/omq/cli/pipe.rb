@@ -134,18 +134,24 @@ module OMQ
         in_eps, out_eps = resolve_endpoints
         in_eps  = preresolve_tcp(in_eps)
         out_eps = preresolve_tcp(out_eps)
-        workers = spawn_workers(config, in_eps, out_eps)
+        log_port, log_thread = start_log_consumer if config.verbose >= 2
+        workers = spawn_workers(config, in_eps, out_eps, log_port)
         workers.each do |w|
           w.join
         rescue ::Ractor::RemoteError => e
           $stderr.write("omq: Ractor error: #{e.cause&.message || e.message}\n")
         end
+      ensure
+        if log_port
+          log_port.close
+          log_thread.join
+        end
       end
 
 
-      def spawn_workers(config, in_eps, out_eps)
+      def spawn_workers(config, in_eps, out_eps, log_port = nil)
         config.parallel.times.map do
-          ::Ractor.new(config, in_eps, out_eps) do |cfg, ins, outs|
+          ::Ractor.new(config, in_eps, out_eps, log_port) do |cfg, ins, outs, lport|
             Async do
               pull = OMQ::PULL.new(linger: cfg.linger)
               push = OMQ::PUSH.new(linger: cfg.linger)
@@ -166,6 +172,27 @@ module OMQ
 
               OMQ::CLI::SocketSetup.attach_endpoints(pull, ins, verbose: cfg.verbose >= 1)
               OMQ::CLI::SocketSetup.attach_endpoints(push, outs, verbose: cfg.verbose >= 1)
+
+              if lport
+                trace = cfg.verbose >= 3
+                [pull, push].each do |sock|
+                  sock.monitor(verbose: trace) do |event|
+                    line = case event.type
+                    when :message_sent
+                      parts = event.detail[:parts]
+                      "omq: >> #{parts.map { |p| b = p.b; s = b[0,10].gsub(/[^[:print:]]/, "."); b.bytesize > 10 ? "#{s}... (#{b.bytesize}B)" : s }.join(" | ")}"
+                    when :message_received
+                      parts = event.detail[:parts]
+                      "omq: << #{parts.map { |p| b = p.b; s = b[0,10].gsub(/[^[:print:]]/, "."); b.bytesize > 10 ? "#{s}... (#{b.bytesize}B)" : s }.join(" | ")}"
+                    else
+                      ep = event.endpoint ? " #{event.endpoint}" : ""
+                      detail = event.detail ? " #{event.detail}" : ""
+                      "omq: #{event.type}#{ep}#{detail}"
+                    end
+                    lport.send(line)
+                  end
+                end
+              end
 
               Barrier do |barrier|
                 barrier.async { pull.peer_connected.wait }
@@ -240,6 +267,22 @@ module OMQ
 
 
       # ── Shared helpers ────────────────────────────────────────────────
+
+
+      # Starts a Ractor::Port and a consumer thread that drains log
+      # messages to stderr sequentially. Returns [port, thread].
+      #
+      def start_log_consumer
+        port = Ractor::Port.new
+        thread = Thread.new(port) do |p|
+          loop do
+            $stderr.write("#{p.receive}\n")
+          rescue Ractor::ClosedError
+            break
+          end
+        end
+        [port, thread]
+      end
 
 
       # Resolves TCP hostnames to IP addresses so Ractors don't touch
