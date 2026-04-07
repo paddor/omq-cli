@@ -74,17 +74,19 @@ module OMQ
       end
 
 
-      def apply_socket_intervals(sock)
+      def apply_socket_options(sock)
         sock.reconnect_interval = config.reconnect_ivl if config.reconnect_ivl
         sock.heartbeat_interval = config.heartbeat_ivl if config.heartbeat_ivl
+        sock.send_hwm           = config.send_hwm      if config.send_hwm
+        sock.recv_hwm           = config.recv_hwm      if config.recv_hwm
       end
 
 
       def build_pull_push(pull_opts, push_opts, in_eps, out_eps)
         pull = OMQ::PULL.new(**pull_opts)
         push = OMQ::PUSH.new(**push_opts)
-        apply_socket_intervals(pull)
-        apply_socket_intervals(push)
+        apply_socket_options(pull)
+        apply_socket_options(push)
         attach_endpoints(pull, in_eps)
         attach_endpoints(push, out_eps)
         [pull, push]

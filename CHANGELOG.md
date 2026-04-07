@@ -4,6 +4,8 @@
 
 ### Added
 
+- **`--send-hwm` / `--recv-hwm` options** — set send and receive high water
+  marks from the command line (default 1000, 0 = unbounded).
 - **`OMQ_DEBUG` env var** — starts async-debug web UI on
   `https://localhost:5050` (or custom port via `OMQ_DEBUG=PORT`).
 - **`omq pipe -v` verbose logging** — `pipe` now prints "Bound to …" /

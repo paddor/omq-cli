@@ -15,6 +15,8 @@ module OMQ
         sock.recv_timeout      = config.timeout    if config.timeout
         sock.send_timeout      = config.timeout    if config.timeout
         sock.max_message_size  = config.recv_maxsz if config.recv_maxsz
+        sock.send_hwm            = config.send_hwm       if config.send_hwm
+        sock.recv_hwm            = config.recv_hwm       if config.recv_hwm
         sock.reconnect_interval  = config.reconnect_ivl if config.reconnect_ivl
         sock.heartbeat_interval  = config.heartbeat_ivl if config.heartbeat_ivl
         sock.identity            = config.identity      if config.identity

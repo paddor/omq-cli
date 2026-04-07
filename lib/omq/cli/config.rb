@@ -38,6 +38,8 @@ module OMQ
       :linger,
       :reconnect_ivl,
       :heartbeat_ivl,
+      :send_hwm,
+      :recv_hwm,
       :conflate,
       :compress,
       :send_expr,

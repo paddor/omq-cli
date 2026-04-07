@@ -547,6 +547,15 @@ check "pipe --out without --in errors" "1" "$EXITCODE"
 $OMQ req --in -c tcp://x:1 --out -c tcp://x:2 2>$TMPDIR/val_pipe3.txt && EXITCODE=0 || EXITCODE=$?
 check "--in/--out on non-pipe errors" "1" "$EXITCODE"
 
+# ── HWM options ─────────────────────────────────────────────────────
+
+echo "HWM options:"
+U=$(ipc)
+$OMQ pull -b $U --recv-hwm 10 -n 1 $T > $TMPDIR/hwm_out.txt 2>>"$STDERR_LOG" &
+echo 'hwm test' | $OMQ push -c $U --send-hwm 10 $T 2>>"$STDERR_LOG"
+wait
+check "--send-hwm and --recv-hwm accepted" "hwm test" "$(cat $TMPDIR/hwm_out.txt)"
+
 # ── Summary ─────────────────────────────────────────────────────────
 
 echo

@@ -213,6 +213,8 @@ module OMQ
         linger:           5,
         reconnect_ivl:    nil,
         heartbeat_ivl:    nil,
+        send_hwm:         nil,
+        recv_hwm:         nil,
         conflate:         false,
         compress:         false,
         send_expr:        nil,
@@ -336,6 +338,8 @@ module OMQ
           }
           o.on("--heartbeat-ivl SECS", Float, "ZMTP heartbeat interval (detects dead peers)") { |v| opts[:heartbeat_ivl] = v }
           o.on("--recv-maxsz COUNT", Integer, "Max inbound message size in bytes (larger messages dropped)") { |v| opts[:recv_maxsz] = v }
+          o.on("--send-hwm N", Integer, "Send high water mark (default 1000, 0=unbounded)") { |v| opts[:send_hwm] = v }
+          o.on("--recv-hwm N", Integer, "Recv high water mark (default 1000, 0=unbounded)") { |v| opts[:recv_hwm] = v }
 
           o.separator "\nDelivery:"
           o.on("--conflate", "Keep only last message per subscriber (PUB/RADIO)") { opts[:conflate] = true }
