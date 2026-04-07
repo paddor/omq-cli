@@ -211,7 +211,12 @@ module OMQ
       if ENV["OMQ_DEBUG_URI"]
         begin
           require "async/debug"
-          debug_ep = Async::HTTP::Endpoint.parse ENV["OMQ_DEBUG_URI"]
+          debug_ep = Async::HTTP::Endpoint.parse(ENV["OMQ_DEBUG_URI"])
+          if debug_ep.scheme == "https"
+            require "localhost"
+            debug_ep = Async::HTTP::Endpoint.parse(ENV["OMQ_DEBUG_URI"],
+              ssl_context: Localhost::Authority.fetch.server_context)
+          end
         rescue LoadError
           abort "OMQ_DEBUG_URI requires the async-debug gem: gem install async-debug"
         end
