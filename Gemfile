@@ -6,6 +6,7 @@ gemspec
 
 gem "minitest"
 gem "rake"
+gem "async-debug"
 
 gem "omq",                  path: ENV["OMQ_DEV"] ? "../omq" : nil
 gem "omq-ractor",           path: ENV["OMQ_DEV"] ? "../omq-ractor" : nil

@@ -209,8 +209,12 @@ module OMQ
       debug_ep = nil
 
       if ENV["OMQ_DEBUG_URI"]
-        require "async/debug"
-        debug_ep = Async::HTTP::Endpoint.parse ENV["OMQ_DEBUG_URI"]
+        begin
+          require "async/debug"
+          debug_ep = Async::HTTP::Endpoint.parse ENV["OMQ_DEBUG_URI"]
+        rescue LoadError
+          abort "OMQ_DEBUG_URI requires the async-debug gem: gem install async-debug"
+        end
       end
 
       if config.type_name.nil?
