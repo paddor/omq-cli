@@ -309,7 +309,7 @@ module OMQ
           o.on("-Q", "--quoted",  "C-style quoted with escapes")                { opts[:format] = :quoted }
           o.on(      "--raw",     "Raw binary, no framing")                     { opts[:format] = :raw }
           o.on("-J", "--jsonl",   "JSON Lines (array of strings per line)")     { opts[:format] = :jsonl }
-          o.on(      "--msgpack",  "MessagePack arrays (binary stream)")         { opts[:format] = :msgpack }
+          o.on(      "--msgpack",  "MessagePack arrays (binary stream)")         { require "msgpack"; opts[:format] = :msgpack }
           o.on("-M", "--marshal", "Ruby Marshal stream (binary, Array<String>)") { opts[:format] = :marshal }
 
           o.separator "\nSubscription/groups:"
