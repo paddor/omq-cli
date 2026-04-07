@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.2 — 2026-04-07
+
+### Fixed
+
+- **Guard async-debug behind `OMQ_DEV`** — the Gemfile still caused the
+  openssl conflict on CI even after removing it from the gemspec.
+
 ## 0.5.1 — 2026-04-07
 
 ### Fixed
