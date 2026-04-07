@@ -468,6 +468,14 @@ module OMQ
         (opts[:connects] + opts[:binds]).each do |url|
           abort "inproc not supported, use tcp:// or ipc://" if url.include?("inproc://")
         end
+
+        all_urls = if type_name == "pipe"
+                     (opts[:in_endpoints] + opts[:out_endpoints] + opts[:endpoints]).map(&:url)
+                   else
+                     opts[:connects] + opts[:binds]
+                   end
+        dups = all_urls.tally.select { |_, n| n > 1 }.keys
+        abort "duplicate endpoint: #{dups.first}" if dups.any?
       end
     end
   end

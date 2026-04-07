@@ -551,6 +551,12 @@ check "pipe --out without --in errors" "1" "$EXITCODE"
 $OMQ req --in -c tcp://x:1 --out -c tcp://x:2 2>$TMPDIR/val_pipe3.txt && EXITCODE=0 || EXITCODE=$?
 check "--in/--out on non-pipe errors" "1" "$EXITCODE"
 
+$OMQ pipe -c tcp://x:1 -c tcp://x:1 2>$TMPDIR/val_dup1.txt && EXITCODE=0 || EXITCODE=$?
+check "pipe duplicate endpoints errors" "1" "$EXITCODE"
+
+$OMQ push -c tcp://x:1 -b tcp://x:1 2>$TMPDIR/val_dup2.txt && EXITCODE=0 || EXITCODE=$?
+check "duplicate endpoints errors" "1" "$EXITCODE"
+
 # ── HWM options ─────────────────────────────────────────────────────
 
 echo "HWM options:"
