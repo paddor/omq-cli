@@ -25,6 +25,7 @@ module OMQ
       # @return [void]
       def call(task)
         setup_socket
+        start_event_monitor if config.verbose >= 2
         maybe_start_transient_monitor(task)
         sleep(config.delay) if config.delay && config.recv_only?
         wait_for_peer if needs_peer_wait?
@@ -63,7 +64,7 @@ module OMQ
 
 
       def attach_endpoints
-        SocketSetup.attach(@sock, config, verbose: config.verbose)
+        SocketSetup.attach(@sock, config, verbose: config.verbose >= 1)
       end
 
 
@@ -296,6 +297,7 @@ module OMQ
         return if parts.empty?
         parts = [Marshal.dump(parts)] if config.format == :marshal
         parts = @fmt.compress(parts)
+        trace_send(parts)
         @sock.send(parts)
         transient_ready!
       end
@@ -306,6 +308,7 @@ module OMQ
         return nil if raw.nil?
         parts = @fmt.decompress(raw)
         parts = Marshal.load(parts.first) if config.format == :marshal
+        trace_recv(parts)
         transient_ready!
         parts
       end
@@ -424,7 +427,46 @@ module OMQ
 
 
       def log(msg)
-        $stderr.puts(msg) if config.verbose
+        $stderr.puts(msg) if config.verbose >= 1
+      end
+
+
+      # -vv: log connect/disconnect/retry/timeout events via Socket#monitor
+      def start_event_monitor
+        @sock.monitor do |event|
+          ep = event.endpoint ? " #{event.endpoint}" : ""
+          detail = event.detail ? " #{event.detail}" : ""
+          $stderr.puts "omq: #{event.type}#{ep}#{detail}"
+        end
+      end
+
+
+      # -vvv: log first 10 bytes of each message part
+      def trace_send(parts)
+        return unless config.verbose >= 3
+        $stderr.puts "omq: >> #{msg_preview(parts)}"
+      end
+
+
+      def trace_recv(parts)
+        return unless config.verbose >= 3
+        $stderr.puts "omq: << #{msg_preview(parts)}"
+      end
+
+
+      def msg_preview(parts)
+        parts.map { |p| preview_bytes(p) }.join(" | ")
+      end
+
+
+      def preview_bytes(str)
+        bytes = str.b
+        preview = bytes[0, 10].gsub(/[^[:print:]]/, ".")
+        if bytes.bytesize > 10
+          "#{preview}... (#{bytes.bytesize}B)"
+        else
+          preview
+        end
       end
     end
   end

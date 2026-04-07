@@ -204,7 +204,7 @@ module OMQ
       trap("INT")  { Process.exit!(0) }
       trap("TERM") { Process.exit!(0) }
 
-      Console.logger = Console::Logger.new(Console::Output::Null.new) unless config.verbose
+      Console.logger = Console::Logger.new(Console::Output::Null.new) unless config.verbose >= 1
 
       debug_ep = nil
 
@@ -227,7 +227,7 @@ module OMQ
 
       runner_class, socket_sym = RUNNER_MAP.fetch(config.type_name)
 
-      Async annotation: 'omq' do |task|
+      Async annotation: "omq #{config.type_name}" do |task|
         Async::Debug.serve(endpoint: debug_ep) if debug_ep
         config.scripts.each { |s| load_script(s) }
         runner = if socket_sym

@@ -8,8 +8,9 @@
   marks from the command line (default 1000, 0 = unbounded).
 - **`OMQ_DEBUG` env var** — starts async-debug web UI on
   `https://localhost:5050` (or custom port via `OMQ_DEBUG=PORT`).
-- **`omq pipe -v` verbose logging** — `pipe` now prints "Bound to …" /
-  "Connecting to …" on stderr when `-v` is set.
+- **Multi-level verbosity** — `-v` prints endpoints, `-vv` logs all
+  connection events (connect/disconnect/retry/timeout) via socket monitor,
+  `-vvv` also traces first 10 bytes of every sent/received message.
 
 ### Fixed
 

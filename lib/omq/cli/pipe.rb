@@ -42,7 +42,7 @@ module OMQ
 
 
       def attach_endpoints(sock, endpoints)
-        SocketSetup.attach_endpoints(sock, endpoints, verbose: config.verbose)
+        SocketSetup.attach_endpoints(sock, endpoints, verbose: config.verbose >= 1)
       end
 
 
@@ -58,6 +58,7 @@ module OMQ
         )
         compile_expr
         @sock = @pull  # for eval instance_exec
+        start_event_monitors if config.verbose >= 2
         with_timeout(config.timeout) do
           Barrier do |barrier|
             barrier.async(annotation: "wait push peer") { @push.peer_connected.wait }
@@ -105,13 +106,19 @@ module OMQ
 
       def sequential_message_loop
         n = config.count
+        trace = config.verbose >= 3
         i = 0
         loop do
           parts = @pull.receive
           break if parts.nil?
           parts = @fmt.decompress(parts)
+          $stderr.puts "omq: << #{msg_preview(parts)}" if trace
           parts = eval_recv_expr(parts)
-          @push.send(@fmt.compress(parts)) if parts && !parts.empty?
+          if parts && !parts.empty?
+            out = @fmt.compress(parts)
+            $stderr.puts "omq: >> #{msg_preview(out)}" if trace
+            @push.send(out)
+          end
           i += 1
           break if n && n > 0 && i >= n
         end
@@ -283,7 +290,27 @@ module OMQ
 
 
       def log(msg)
-        $stderr.puts(msg) if config.verbose
+        $stderr.puts(msg) if config.verbose >= 1
+      end
+
+
+      def start_event_monitors
+        [@pull, @push].each do |sock|
+          sock.monitor do |event|
+            ep = event.endpoint ? " #{event.endpoint}" : ""
+            detail = event.detail ? " #{event.detail}" : ""
+            $stderr.puts "omq: #{event.type}#{ep}#{detail}"
+          end
+        end
+      end
+
+
+      def msg_preview(parts)
+        parts.map { |p|
+          bytes = p.b
+          preview = bytes[0, 10].gsub(/[^[:print:]]/, ".")
+          bytes.bytesize > 10 ? "#{preview}... (#{bytes.bytesize}B)" : preview
+        }.join(" | ")
       end
     end
   end

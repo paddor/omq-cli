@@ -221,7 +221,7 @@ module OMQ
         recv_expr:        nil,
         parallel:         nil,
         transient:        false,
-        verbose:          false,
+        verbose:          0,
         quiet:            false,
         echo:             false,
         scripts:          [],
@@ -367,7 +367,7 @@ module OMQ
           o.separator "            OMQ_CURVE_CRYPTO (backend: rbnacl or nuckle)"
 
           o.separator "\nOther:"
-          o.on("-v", "--verbose",   "Print connection events to stderr") { opts[:verbose] = true }
+          o.on("-v", "--verbose",   "Verbosity: -v endpoints, -vv events, -vvv messages") { opts[:verbose] += 1 }
           o.on("-q", "--quiet",     "Suppress message output")           { opts[:quiet] = true }
           o.on(      "--transient", "Exit when all peers disconnect")    { opts[:transient] = true }
           o.on("-V", "--version") {
