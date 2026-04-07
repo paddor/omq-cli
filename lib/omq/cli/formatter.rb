@@ -98,6 +98,22 @@ module OMQ
       rescue
         abort "omq: decompression failed (did the sender use --compress?)"
       end
+
+
+      # Formats message parts for human-readable preview (logging).
+      #
+      # @param parts [Array<String>] message frames
+      # @return [String] truncated preview of each frame joined by |
+      def self.preview(parts)
+        total = parts.sum(&:bytesize)
+        shown = parts.first(3).map do |p|
+          bytes = p.b
+          preview = bytes[0, 12].gsub(/[^[:print:]]/, ".")
+          bytes.bytesize > 12 ? "#{preview}..." : preview
+        end
+        tail = parts.size > 3 ? "|...(#{parts.size} parts)" : ""
+        "(#{total}B) #{shown.join("|")}#{tail}"
+      end
     end
   end
 end

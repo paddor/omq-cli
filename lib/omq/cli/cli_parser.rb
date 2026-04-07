@@ -6,12 +6,12 @@ module OMQ
     #
     class CliParser
       EXAMPLES = <<~'TEXT'
-        ── Request / Reply ──────────────────────────────────────────
+        -- Request / Reply ------------------------------------------
 
-          ┌─────┐  "hello"    ┌─────┐
-          │ REQ │────────────→│ REP │
-          │     │←────────────│     │
-          └─────┘  "HELLO"    └─────┘
+          +-----+  "hello"    +-----+
+          | REQ |------------->| REP |
+          |     |<-------------|     |
+          +-----+  "HELLO"    +-----+
 
           # terminal 1: echo server
           omq rep --bind tcp://:5555 --recv-eval '$F.map(&:upcase)'
@@ -23,11 +23,11 @@ module OMQ
           omq rep --bind ipc:///tmp/echo.sock --echo &
           echo "hello" | omq req --connect ipc:///tmp/echo.sock
 
-        ── Publish / Subscribe ──────────────────────────────────────
+        -- Publish / Subscribe --------------------------------------
 
-          ┌─────┐  "weather.nyc 72F"  ┌─────┐
-          │ PUB │────────────────────→│ SUB │ --subscribe "weather."
-          └─────┘                     └─────┘
+          +-----+  "weather.nyc 72F"  +-----+
+          | PUB |--------------------->| SUB | --subscribe "weather."
+          +-----+                     +-----+
 
           # terminal 1: subscriber (all topics by default)
           omq sub --bind tcp://:5556
@@ -35,11 +35,11 @@ module OMQ
           # terminal 2: publisher (needs --delay for subscription to propagate)
           echo "weather.nyc 72F" | omq pub --connect tcp://localhost:5556 --delay 1
 
-        ── Periodic Publish ───────────────────────────────────────────
+        -- Periodic Publish -------------------------------------------
 
-          ┌─────┐  "tick 1"    ┌─────┐
-          │ PUB │──(every 1s)─→│ SUB │
-          └─────┘              └─────┘
+          +-----+  "tick 1"    +-----+
+          | PUB |--(every 1s)-->| SUB |
+          +-----+              +-----+
 
           # terminal 1: subscriber
           omq sub --bind tcp://:5556
@@ -52,11 +52,11 @@ module OMQ
           omq pub --connect tcp://localhost:5556 --delay 1 \
             --data "tick" --interval 1 --count 5
 
-        ── Pipeline ─────────────────────────────────────────────────
+        -- Pipeline -------------------------------------------------
 
-          ┌──────┐           ┌──────┐
-          │ PUSH │──────────→│ PULL │
-          └──────┘           └──────┘
+          +------+           +------+
+          | PUSH |----------->| PULL |
+          +------+           +------+
 
           # terminal 1: worker
           omq pull --bind tcp://:5557
@@ -68,16 +68,16 @@ module OMQ
           omq pull --bind ipc:///tmp/pipeline.sock &
           echo "task 1" | omq push --connect ipc:///tmp/pipeline.sock
 
-        ── Pipe (PULL → eval → PUSH) ────────────────────────────────
+        -- Pipe (PULL -> eval -> PUSH) --------------------------------
 
-          ┌──────┐         ┌──────┐         ┌──────┐
-          │ PUSH │────────→│ pipe │────────→│ PULL │
-          └──────┘         └──────┘         └──────┘
+          +------+         +------+         +------+
+          | PUSH |--------->| pipe |--------->| PULL |
+          +------+         +------+         +------+
 
           # terminal 1: producer
           echo -e "hello\nworld" | omq push --bind ipc://@work
 
-          # terminal 2: worker — uppercase each message
+          # terminal 2: worker -- uppercase each message
           omq pipe -c ipc://@work -c ipc://@sink -e '$F.map(&:upcase)'
           # terminal 3: collector
           omq pull --bind ipc://@sink
@@ -88,19 +88,19 @@ module OMQ
           # exit when producer disconnects (--transient)
           omq pipe -c ipc://@work -c ipc://@sink --transient -e '$F.map(&:upcase)'
 
-          # fan-in: multiple sources → one sink
+          # fan-in: multiple sources -> one sink
           omq pipe --in -c ipc://@work1 -c ipc://@work2 \
             --out -c ipc://@sink -e '$F.map(&:upcase)'
 
-          # fan-out: one source → multiple sinks (round-robin)
+          # fan-out: one source -> multiple sinks (round-robin)
           omq pipe --in -b tcp://:5555 --out -c ipc://@sink1 -c ipc://@sink2 -e '$F'
 
-        ── CLIENT / SERVER (draft) ──────────────────────────────────
+        -- CLIENT / SERVER (draft) ----------------------------------
 
-          ┌────────┐  "hello"   ┌────────┐
-          │ CLIENT │───────────→│ SERVER │ --recv-eval '$F.map(&:upcase)'
-          │        │←───────────│        │
-          └────────┘  "HELLO"   └────────┘
+          +--------+  "hello"   +--------+
+          | CLIENT |------------>| SERVER | --recv-eval '$F.map(&:upcase)'
+          |        |<------------|        |
+          +--------+  "HELLO"   +--------+
 
           # terminal 1: upcasing server
           omq server --bind tcp://:5555 --recv-eval '$F.map(&:upcase)'
@@ -108,28 +108,28 @@ module OMQ
           # terminal 2: client
           echo "hello" | omq client --connect tcp://localhost:5555
 
-        ── Formats ──────────────────────────────────────────────────
+        -- Formats --------------------------------------------------
 
-          # ascii (default) — non-printable replaced with dots
+          # ascii (default) -- non-printable replaced with dots
           omq pull --bind tcp://:5557 --ascii
 
-          # quoted — lossless, round-trippable (uses String#dump escaping)
+          # quoted -- lossless, round-trippable (uses String#dump escaping)
           omq pull --bind tcp://:5557 --quoted
 
-          # JSON Lines — structured, multipart as arrays
+          # JSON Lines -- structured, multipart as arrays
           echo '["key","value"]' | omq push --connect tcp://localhost:5557 --jsonl
           omq pull --bind tcp://:5557 --jsonl
 
           # multipart via tabs
           printf "routing-key\tpayload" | omq push --connect tcp://localhost:5557
 
-        ── Compression ──────────────────────────────────────────────
+        -- Compression ----------------------------------------------
 
           # both sides must use --compress
           omq pull --bind tcp://:5557 --compress &
           echo "compressible data" | omq push --connect tcp://localhost:5557 --compress
 
-        ── CURVE Encryption ─────────────────────────────────────────
+        -- CURVE Encryption -----------------------------------------
 
           # server (prints OMQ_SERVER_KEY=...)
           omq rep --bind tcp://:5555 --echo --curve-server
@@ -138,12 +138,12 @@ module OMQ
           echo "secret" | omq req --connect tcp://localhost:5555 \
             --curve-server-key '<key from server>'
 
-        ── ROUTER / DEALER ──────────────────────────────────────────
+        -- ROUTER / DEALER ------------------------------------------
 
-          ┌────────┐          ┌────────┐
-          │ DEALER │─────────→│ ROUTER │
-          │ id=w1  │          │        │
-          └────────┘          └────────┘
+          +--------+          +--------+
+          | DEALER |---------->| ROUTER |
+          | id=w1  |          |        |
+          +--------+          +--------+
 
           # terminal 1: router shows identity + message
           omq router --bind tcp://:5555
@@ -151,7 +151,7 @@ module OMQ
           # terminal 2: dealer with identity
           echo "hello" | omq dealer --connect tcp://localhost:5555 --identity worker-1
 
-        ── Ruby Eval ────────────────────────────────────────────────
+        -- Ruby Eval ------------------------------------------------
 
           # filter incoming: only pass messages containing "error"
           omq pull -b tcp://:5557 --recv-eval '$F.first.include?("error") ? $F : nil'
@@ -162,10 +162,10 @@ module OMQ
           # require a local file, use its methods
           omq rep --bind tcp://:5555 --require ./transform.rb -e 'upcase_all($F)'
 
-          # next skips, break stops — regexps match against $_
+          # next skips, break stops -- regexps match against $_
           omq pull -b tcp://:5557 -e 'next if /^#/; break if /quit/; $F'
 
-          # BEGIN/END blocks (like awk) — accumulate and summarize
+          # BEGIN/END blocks (like awk) -- accumulate and summarize
           omq pull -b tcp://:5557 -e 'BEGIN{@sum = 0} @sum += Integer($_); nil END{puts @sum}'
 
           # transform outgoing messages
@@ -174,9 +174,9 @@ module OMQ
           # REQ: transform request and reply independently
           echo hello | omq req -c tcp://localhost:5555 -E '$F.map(&:upcase)' -e '$_'
 
-        ── Script Handlers (-r) ────────────────────────────────────
+        -- Script Handlers (-r) ------------------------------------
 
-          # handler.rb — register transforms from a file
+          # handler.rb -- register transforms from a file
           #   db = PG.connect("dbname=app")
           #   OMQ.incoming { |first_part, _| db.exec(first_part).values.flatten }
           #   at_exit { db.close }
@@ -185,8 +185,8 @@ module OMQ
           # combine script handlers with inline eval
           omq req -c tcp://localhost:5555 -r./handler.rb -E '$F.map(&:upcase)'
 
-          # OMQ.outgoing { |msg| ... }   — registered outgoing transform
-          # OMQ.incoming { |msg| ... }   — registered incoming transform
+          # OMQ.outgoing { |msg| ... }   -- registered outgoing transform
+          # OMQ.incoming { |msg| ... }   -- registered incoming transform
           # CLI flags (-e/-E) override registered handlers
       TEXT
 
@@ -271,7 +271,7 @@ module OMQ
           o.banner = "Usage: omq TYPE [options]\n\n" \
                      "Types:    req, rep, pub, sub, push, pull, pair, dealer, router\n" \
                      "Draft:    client, server, radio, dish, scatter, gather, channel, peer\n" \
-                     "Virtual:  pipe (PULL → eval → PUSH)\n\n"
+                     "Virtual:  pipe (PULL -> eval -> PUSH)\n\n"
 
           o.separator "Connection:"
           o.on("-c", "--connect URL", "Connect to endpoint (repeatable)") { |v|
@@ -412,7 +412,7 @@ module OMQ
         type_name = argv.shift
         if type_name.nil?
           abort parser.to_s if opts[:scripts].empty?
-          # bare script mode — type_name stays nil
+          # bare script mode -- type_name stays nil
         elsif !SOCKET_TYPE_NAMES.include?(type_name.downcase)
           abort "Unknown socket type: #{type_name}. Known: #{SOCKET_TYPE_NAMES.join(', ')}"
         else
@@ -486,10 +486,15 @@ module OMQ
         abort "--send-eval and --target are mutually exclusive"  if opts[:send_expr] && opts[:target]
 
         if opts[:parallel]
-          abort "-P/--parallel is only valid for pipe" unless type_name == "pipe"
+          parallel_types = %w[pipe pull gather rep]
+          abort "-P/--parallel is only valid for #{parallel_types.join(", ")}" unless parallel_types.include?(type_name)
           abort "-P/--parallel must be 1..16" unless (1..16).include?(opts[:parallel])
-          all_pipe_eps = opts[:in_endpoints] + opts[:out_endpoints] + opts[:endpoints]
-          abort "-P/--parallel requires all endpoints to use --connect (not --bind)" if all_pipe_eps.any?(&:bind?)
+          if type_name == "pipe"
+            all_eps = opts[:in_endpoints] + opts[:out_endpoints] + opts[:endpoints]
+          else
+            all_eps = opts[:endpoints]
+          end
+          abort "-P/--parallel requires all endpoints to use --connect (not --bind)" if all_eps.any?(&:bind?)
         end
 
         (opts[:connects] + opts[:binds]).each do |url|

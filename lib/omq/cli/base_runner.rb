@@ -24,6 +24,7 @@ module OMQ
       # @param task [Async::Task] the parent async task
       # @return [void]
       def call(task)
+        set_process_title
         setup_socket
         start_event_monitor if config.verbose >= 2
         maybe_start_transient_monitor(task)
@@ -46,7 +47,33 @@ module OMQ
       end
 
 
-      # ── Socket creation ─────────────────────────────────────────────
+      # -- Parallel Ractor workers -----------------------------------------
+
+
+      def run_parallel_workers(socket_sym)
+        OMQ.freeze_for_ractors!
+        eps = RactorHelpers.preresolve_tcp(config.endpoints)
+        output_port, output_thread = RactorHelpers.start_output_consumer
+        log_port, log_thread = RactorHelpers.start_log_consumer
+
+        workers = config.parallel.times.map do
+          ::Ractor.new(config, socket_sym, eps, output_port, log_port) do |cfg, sym, e, oport, lport|
+            ParallelWorker.new(cfg, sym, e, oport, lport).call
+          end
+        end
+
+        workers.each do |w|
+          w.join
+        rescue ::Ractor::RemoteError => e
+          $stderr.write("omq: Ractor error: #{e.cause&.message || e.message}\n")
+        end
+      ensure
+        RactorHelpers.stop_consumer(output_port, output_thread) if output_port
+        RactorHelpers.stop_consumer(log_port, log_thread) if log_port
+      end
+
+
+      # -- Socket creation ---------------------------------------------
 
 
       def setup_socket
@@ -68,7 +95,7 @@ module OMQ
       end
 
 
-      # ── Transient disconnect monitor ────────────────────────────────
+      # -- Transient disconnect monitor --------------------------------
 
 
       def maybe_start_transient_monitor(task)
@@ -83,7 +110,7 @@ module OMQ
       end
 
 
-      # ── BEGIN / END blocks ──────────────────────────────────────────
+      # -- BEGIN / END blocks ------------------------------------------
 
 
       def run_begin_blocks
@@ -98,7 +125,7 @@ module OMQ
       end
 
 
-      # ── Peer wait with grace period ─────────────────────────────────
+      # -- Peer wait with grace period ---------------------------------
 
 
       def needs_peer_wait?
@@ -139,7 +166,7 @@ module OMQ
       end
 
 
-      # ── Socket setup ────────────────────────────────────────────────
+      # -- Socket setup ------------------------------------------------
 
 
       def setup_subscriptions
@@ -157,7 +184,7 @@ module OMQ
       end
 
 
-      # ── Shared loop bodies ──────────────────────────────────────────
+      # -- Shared loop bodies ------------------------------------------
 
 
       def run_send_logic
@@ -273,7 +300,7 @@ module OMQ
       end
 
 
-      # ── Message I/O ─────────────────────────────────────────────────
+      # -- Message I/O -------------------------------------------------
 
 
       def send_msg(parts)
@@ -360,7 +387,7 @@ module OMQ
       end
 
 
-      # ── Eval ────────────────────────────────────────────────────────
+      # -- Eval --------------------------------------------------------
 
 
       def compile_expr
@@ -377,7 +404,7 @@ module OMQ
 
 
       def assign_send_aliases
-        # Keep ivar aliases — subclasses check these directly
+        # Keep ivar aliases -- subclasses check these directly
         @send_begin_proc = @send_evaluator.begin_proc
         @send_eval_proc  = @send_evaluator.eval_proc
         @send_end_proc   = @send_evaluator.end_proc
@@ -404,7 +431,22 @@ module OMQ
       SENT = ExpressionEvaluator::SENT
 
 
-      # ── Logging ─────────────────────────────────────────────────────
+      # -- Process title -------------------------------------------------
+
+
+      def set_process_title(endpoints: nil)
+        eps = endpoints || config.endpoints
+        title = ["omq", config.type_name]
+        title << "-z" if config.compress
+        title << "-P#{config.parallel}" if config.parallel
+        eps.each do |ep|
+          title << (ep.respond_to?(:url) ? ep.url : ep.to_s)
+        end
+        Process.setproctitle(title.join(" "))
+      end
+
+
+      # -- Logging -----------------------------------------------------
 
 
       def log(msg)
@@ -419,30 +461,14 @@ module OMQ
         @sock.monitor(verbose: verbose) do |event|
           case event.type
           when :message_sent
-            $stderr.write("omq: >> #{msg_preview(event.detail[:parts])}\n")
+            $stderr.write("omq: >> #{Formatter.preview(event.detail[:parts])}\n")
           when :message_received
-            $stderr.write("omq: << #{msg_preview(event.detail[:parts])}\n")
+            $stderr.write("omq: << #{Formatter.preview(event.detail[:parts])}\n")
           else
             ep = event.endpoint ? " #{event.endpoint}" : ""
             detail = event.detail ? " #{event.detail}" : ""
             $stderr.write("omq: #{event.type}#{ep}#{detail}\n")
           end
-        end
-      end
-
-
-      def msg_preview(parts)
-        parts.map { |p| preview_bytes(p) }.join(" | ")
-      end
-
-
-      def preview_bytes(str)
-        bytes = str.b
-        preview = bytes[0, 10].gsub(/[^[:print:]]/, ".")
-        if bytes.bytesize > 10
-          "#{preview}... (#{bytes.bytesize}B)"
-        else
-          preview
         end
       end
     end

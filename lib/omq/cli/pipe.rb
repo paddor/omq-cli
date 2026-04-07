@@ -5,6 +5,11 @@ module OMQ
     # Runner for the virtual "pipe" socket type (PULL -> eval -> PUSH).
     # Supports sequential and parallel (Ractor-based) processing modes.
     class PipeRunner
+      # Default HWM for pipe sockets when the user hasn't set one.
+      # Much lower than the socket default (1000) to bound memory
+      # with large messages in pipeline stages.
+      PIPE_HWM = 64
+
       # @return [Config] frozen CLI configuration
       attr_reader :config
 
@@ -42,10 +47,11 @@ module OMQ
       end
 
 
-      # ── Sequential ───────────────────────────────────────────────────
+      # -- Sequential ---------------------------------------------------
 
 
       def run_sequential(task)
+        set_pipe_process_title
         in_eps, out_eps = resolve_endpoints
         @pull, @push = build_pull_push(in_eps, out_eps)
         compile_expr
@@ -73,21 +79,13 @@ module OMQ
       end
 
 
-      def apply_socket_options(sock)
-        sock.reconnect_interval = config.reconnect_ivl if config.reconnect_ivl
-        sock.heartbeat_interval = config.heartbeat_ivl if config.heartbeat_ivl
-        sock.send_hwm           = config.send_hwm      if config.send_hwm
-        sock.recv_hwm           = config.recv_hwm      if config.recv_hwm
-        sock.sndbuf             = config.sndbuf        if config.sndbuf
-        sock.rcvbuf             = config.rcvbuf        if config.rcvbuf
-      end
-
-
       def build_pull_push(in_eps, out_eps)
-        pull = OMQ::PULL.new(linger: config.linger, recv_timeout: config.timeout)
-        push = OMQ::PUSH.new(linger: config.linger, send_timeout: config.timeout)
-        apply_socket_options(pull)
-        apply_socket_options(push)
+        pull = OMQ::PULL.new
+        push = OMQ::PUSH.new
+        SocketSetup.apply_options(pull, config)
+        SocketSetup.apply_options(push, config)
+        pull.recv_hwm = PIPE_HWM unless config.recv_hwm
+        push.send_hwm = PIPE_HWM unless config.send_hwm
         SocketSetup.attach_endpoints(pull, in_eps, verbose: config.verbose >= 1)
         SocketSetup.attach_endpoints(push, out_eps, verbose: config.verbose >= 1)
         [pull, push]
@@ -121,15 +119,16 @@ module OMQ
       end
 
 
-      # ── Parallel ─────────────────────────────────────────────────────
+      # -- Parallel -----------------------------------------------------
 
 
       def run_parallel(task)
+        set_pipe_process_title
         OMQ.freeze_for_ractors!
         in_eps, out_eps = resolve_endpoints
-        in_eps  = PipeWorker.preresolve_tcp(in_eps)
-        out_eps = PipeWorker.preresolve_tcp(out_eps)
-        log_port, log_thread = PipeWorker.start_log_consumer
+        in_eps  = RactorHelpers.preresolve_tcp(in_eps)
+        out_eps = RactorHelpers.preresolve_tcp(out_eps)
+        log_port, log_thread = RactorHelpers.start_log_consumer
         workers = config.parallel.times.map do
           ::Ractor.new(config, in_eps, out_eps, log_port) do |cfg, ins, outs, lport|
             PipeWorker.new(cfg, ins, outs, lport).call
@@ -141,12 +140,26 @@ module OMQ
           $stderr.write("omq: Ractor error: #{e.cause&.message || e.message}\n")
         end
       ensure
-        log_port.close
-        log_thread.join
+        RactorHelpers.stop_consumer(log_port, log_thread) if log_port
       end
 
 
-      # ── Expression eval ──────────────────────────────────────────────
+      # -- Process title -------------------------------------------------
+
+
+      def set_pipe_process_title
+        in_eps, out_eps = resolve_endpoints
+        title = ["omq pipe"]
+        title << "-z" if config.compress || config.compress_in || config.compress_out
+        title << "-P#{config.parallel}" if config.parallel
+        title.concat(in_eps.map(&:url))
+        title << "->"
+        title.concat(out_eps.map(&:url))
+        Process.setproctitle(title.join(" "))
+      end
+
+
+      # -- Expression eval ----------------------------------------------
 
 
       def compile_expr
@@ -163,7 +176,7 @@ module OMQ
       end
 
 
-      # ── Event monitoring ─────────────────────────────────────────────
+      # -- Event monitoring ---------------------------------------------
 
 
       def start_event_monitors
@@ -172,9 +185,9 @@ module OMQ
           sock.monitor(verbose: verbose) do |event|
             case event.type
             when :message_sent
-              $stderr.write("omq: >> #{msg_preview(event.detail[:parts])}\n")
+              $stderr.write("omq: >> #{Formatter.preview(event.detail[:parts])}\n")
             when :message_received
-              $stderr.write("omq: << #{msg_preview(event.detail[:parts])}\n")
+              $stderr.write("omq: << #{Formatter.preview(event.detail[:parts])}\n")
             else
               ep = event.endpoint ? " #{event.endpoint}" : ""
               detail = event.detail ? " #{event.detail}" : ""
@@ -182,15 +195,6 @@ module OMQ
             end
           end
         end
-      end
-
-
-      def msg_preview(parts)
-        parts.map { |p|
-          bytes = p.b
-          preview = bytes[0, 10].gsub(/[^[:print:]]/, ".")
-          bytes.bytesize > 10 ? "#{preview}... (#{bytes.bytesize}B)" : preview
-        }.join(" | ")
       end
     end
   end

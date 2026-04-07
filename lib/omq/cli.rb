@@ -18,6 +18,8 @@ require_relative "cli/req_rep"
 require_relative "cli/pair"
 require_relative "cli/router_dealer"
 require_relative "cli/client_server"
+require_relative "cli/ractor_helpers"
+require_relative "cli/parallel_worker"
 require_relative "cli/pipe_worker"
 require_relative "cli/pipe"
 
@@ -169,7 +171,7 @@ module OMQ
           abort "CURVE requires libsodium. Install it:\n" \
                 "  apt install libsodium-dev    # Debian/Ubuntu\n" \
                 "  brew install libsodium       # macOS\n" \
-                "Or use nuckle (pure Ruby, DANGEROUS — not audited):\n" \
+                "Or use nuckle (pure Ruby, DANGEROUS -- not audited):\n" \
                 "  --crypto nuckle"
         end
       else
@@ -221,6 +223,7 @@ module OMQ
       end
 
       if config.type_name.nil?
+        Process.setproctitle("omq script")
         Object.include(OMQ) unless Object.include?(OMQ)
         Async annotation: 'omq' do
           Async::Debug.serve(endpoint: debug_ep) if debug_ep

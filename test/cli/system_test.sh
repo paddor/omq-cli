@@ -30,7 +30,7 @@ trap cleanup EXIT
 
 pass() { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 fail() {
-  echo "  FAIL: $1 — expected: '$2', got: '$3'"
+  echo "  FAIL: $1 -- expected: '$2', got: '$3'"
   if [ -s "$STDERR_LOG" ]; then
     echo "        stderr: $(cat "$STDERR_LOG")"
   fi
@@ -61,7 +61,7 @@ ipc() {
 echo "=== omq system tests ==="
 echo
 
-# ── REQ/REP ─────────────────────────────────────────────────────────
+# -- REQ/REP ---------------------------------------------------------
 
 echo "REQ/REP:"
 U=$(ipc)
@@ -71,7 +71,7 @@ wait
 check "req receives reply" "PONG" "$REQ_OUT"
 check "rep receives request" "hello" "$(cat $TMPDIR/rep_out.txt)"
 
-# ── REP echo mode ───────────────────────────────────────────────────
+# -- REP echo mode ---------------------------------------------------
 
 echo "REP echo:"
 U=$(ipc)
@@ -80,7 +80,7 @@ REQ_OUT=$(echo 'echo me' | $OMQ req -c $U -n 1 $T 2>>"$STDERR_LOG")
 wait
 check "rep --echo echoes back" "echo me" "$REQ_OUT"
 
-# ── PUSH/PULL ───────────────────────────────────────────────────────
+# -- PUSH/PULL -------------------------------------------------------
 
 echo "PUSH/PULL:"
 U=$(ipc)
@@ -89,7 +89,7 @@ echo task-1 | $OMQ push -c $U $T 2>>"$STDERR_LOG"
 wait
 check "pull receives message" "task-1" "$(cat $TMPDIR/pull_out.txt)"
 
-# ── PUB/SUB ─────────────────────────────────────────────────────────
+# -- PUB/SUB ---------------------------------------------------------
 
 echo "PUB/SUB:"
 U=$(ipc)
@@ -98,7 +98,7 @@ $OMQ pub -c $U -E '"weather.nyc 72F"' $T 2>>"$STDERR_LOG"
 wait
 check "sub receives matching message" "weather.nyc 72F" "$(cat $TMPDIR/sub_out.txt)"
 
-# ── Multipart (tabs) ────────────────────────────────────────────────
+# -- Multipart (tabs) ------------------------------------------------
 
 echo "Multipart:"
 U=$(ipc)
@@ -107,7 +107,7 @@ printf 'frame1\tframe2\tframe3' | $OMQ push -c $U $T 2>>"$STDERR_LOG"
 wait
 check "multipart via tabs" "frame1	frame2	frame3" "$(cat $TMPDIR/multi_out.txt)"
 
-# ── JSONL format ────────────────────────────────────────────────────
+# -- JSONL format ----------------------------------------------------
 
 echo "JSONL:"
 U=$(ipc)
@@ -116,7 +116,7 @@ echo '["part1","part2"]' | $OMQ push -c $U -J $T 2>>"$STDERR_LOG"
 wait
 check "jsonl round-trip" '["part1","part2"]' "$(cat $TMPDIR/jsonl_out.txt)"
 
-# ── PUB/SUB eval to JSONL ──────────────────────────────────────────
+# -- PUB/SUB eval to JSONL ------------------------------------------
 
 echo "PUB/SUB eval JSONL:"
 U=$(ipc)
@@ -132,7 +132,7 @@ $OMQ pub -c $U -E '%w(foo bar)' $T 2>>"$STDERR_LOG"
 wait
 check "pub -E to sub -e extracts first part" '["foo"]' "$(cat $TMPDIR/pubsub_evalpipe_out.txt)"
 
-# ── Empty line handling ─────────────────────────────────────────────
+# -- Empty line handling ---------------------------------------------
 
 echo "Empty lines:"
 U=$(ipc)
@@ -141,7 +141,7 @@ printf '\nhello\n' | $OMQ push -c $U $T 2>>"$STDERR_LOG"
 wait
 check "empty lines are skipped" "hello" "$(cat $TMPDIR/empty_out.txt)"
 
-# ── IPC abstract namespace ──────────────────────────────────────────
+# -- IPC abstract namespace ------------------------------------------
 
 echo "IPC abstract namespace:"
 U=$(ipc)
@@ -150,7 +150,7 @@ echo 'abstract' | $OMQ push -c $U $T 2>>"$STDERR_LOG"
 wait
 check "ipc abstract namespace works" "abstract" "$(cat $TMPDIR/abstract_out.txt)"
 
-# ── Ruby eval (-e) ──────────────────────────────────────────────────
+# -- Ruby eval (-e) --------------------------------------------------
 
 echo "Ruby eval:"
 U=$(ipc)
@@ -159,7 +159,7 @@ EVAL_OUT=$(echo 'hello' | $OMQ req -c $U -n 1 $T 2>>"$STDERR_LOG")
 wait
 check "rep -e upcases reply" "HELLO" "$EVAL_OUT"
 
-# ── Ruby eval nil (REP sends empty reply) ───────────────────────────
+# -- Ruby eval nil (REP sends empty reply) ---------------------------
 
 echo "Ruby eval nil:"
 U=$(ipc)
@@ -168,7 +168,7 @@ EVAL_NIL_OUT=$(echo 'anything' | $OMQ req -c $U -n 1 $T 2>>"$STDERR_LOG")
 wait
 check "rep -e nil sends empty reply" "" "$EVAL_NIL_OUT"
 
-# ── Ruby eval on send side ──────────────────────────────────────────
+# -- Ruby eval on send side ------------------------------------------
 
 echo "Ruby eval on send:"
 U=$(ipc)
@@ -177,7 +177,7 @@ echo 'hello' | $OMQ push -c $U -E '$F.map(&:upcase)' $T 2>>"$STDERR_LOG"
 wait
 check "push -E transforms before send" "HELLO" "$(cat $TMPDIR/eval_send_out.txt)"
 
-# ── Ruby eval filter (nil skips) ────────────────────────────────────
+# -- Ruby eval filter (nil skips) ------------------------------------
 
 echo "Ruby eval filter:"
 U=$(ipc)
@@ -186,7 +186,7 @@ printf 'skip\nkeep\n' | $OMQ push -c $U -E '$F.first == "skip" ? nil : $F' $T 2>
 wait
 check "push -E nil skips message" "keep" "$(cat $TMPDIR/eval_filter_out.txt)"
 
-# ── Quoted format ───────────────────────────────────────────────────
+# -- Quoted format ---------------------------------------------------
 
 echo "Quoted format:"
 U=$(ipc)
@@ -195,7 +195,7 @@ printf 'hello\001world' | $OMQ push -c $U --raw $T 2>>"$STDERR_LOG"
 wait
 check "quoted format escapes non-printable" 'hello\x01world' "$(cat $TMPDIR/quoted_out.txt)"
 
-# ── File input (-F) ────────────────────────────────────────────────
+# -- File input (-F) ------------------------------------------------
 
 echo "File input:"
 U=$(ipc)
@@ -205,7 +205,7 @@ $OMQ push -c $U -F $TMPDIR/omq_file_input.txt $T 2>>"$STDERR_LOG"
 wait
 check "-F reads from file" "from file" "$(cat $TMPDIR/file_out.txt)"
 
-# ── Compression (-z) ───────────────────────────────────────────────
+# -- Compression (-z) -----------------------------------------------
 
 if bundle exec ruby -e 'require "zstd-ruby"' 2>>"$STDERR_LOG"; then
   echo "Compression:"
@@ -226,7 +226,7 @@ else
   echo "Compression: skipped (zstd-ruby not installed)"
 fi
 
-# ── Interval sending (-i) ──────────────────────────────────────────
+# -- Interval sending (-i) ------------------------------------------
 
 echo "Interval:"
 U=$(ipc)
@@ -235,7 +235,7 @@ $OMQ push -c $U -D "tick" -i 0.1 -n 3 $T 2>>"$STDERR_LOG"
 wait
 check "interval sends N messages" "3" "$(wc -l < $TMPDIR/interval_out.txt | tr -d ' ')"
 
-# ── Interval with -e (no data/file) ────────────────────────────────
+# -- Interval with -e (no data/file) --------------------------------
 
 echo "Interval with eval:"
 U=$(ipc)
@@ -244,7 +244,7 @@ $OMQ push -c $U -E '"tick"' -i 0.1 -n 3 $T 2>>"$STDERR_LOG"
 wait
 check "interval -E generates messages without input" "3" "$(wc -l < $TMPDIR/interval_eval_out.txt | tr -d ' ')"
 
-# ── Eval sets $_ ───────────────────────────────────────────────────
+# -- Eval sets $_ ---------------------------------------------------
 
 echo "Eval \$_:"
 U=$(ipc)
@@ -253,7 +253,7 @@ echo "hello" | $OMQ push -c $U -E '$_.upcase' $T 2>>"$STDERR_LOG"
 wait
 check "-E sets \$_ to first frame" "HELLO" "$(cat $TMPDIR/eval_line_out.txt)"
 
-# ── Eval nil skips output ──────────────────────────────────────────
+# -- Eval nil skips output ------------------------------------------
 
 echo "Eval nil output:"
 U=$(ipc)
@@ -262,7 +262,7 @@ printf 'skip\nkeep\n' | $OMQ push -c $U -E '$F.first == "skip" ? nil : $F' $T 2>
 wait
 check "-E nil produces no output" "1" "$(wc -l < $TMPDIR/eval_nil_out.txt | tr -d ' ')"
 
-# ── Interval quantized timing ─────────────────────────────────────
+# -- Interval quantized timing -------------------------------------
 
 echo "Interval timing:"
 U=$(ipc)
@@ -272,7 +272,7 @@ $OMQ push -c $U -D "tick" -i 0.2 -n 3 $T 2>>"$STDERR_LOG"
 END=$(date +%s%N)
 wait
 ELAPSED_MS=$(( (END - START) / 1000000 ))
-# 3 messages at 0.2s interval: ~0.6s total, allow 300–1500ms
+# 3 messages at 0.2s interval: ~0.6s total, allow 300-1500ms
 if [ "$ELAPSED_MS" -ge 300 ] && [ "$ELAPSED_MS" -le 1500 ]; then
   TIMING_OK="yes"
 else
@@ -280,7 +280,7 @@ else
 fi
 check "quantized interval keeps cadence" "yes" "$TIMING_OK"
 
-# ── Interval with --send-eval and stdin ────────────────────────────
+# -- Interval with --send-eval and stdin ----------------------------
 
 echo "Interval with send-eval + stdin:"
 U=$(ipc)
@@ -290,7 +290,7 @@ wait
 check "interval -E with stdin appends to each line" "3" "$(wc -l < $TMPDIR/interval_eval_stdin_out.txt | tr -d ' ')"
 check "interval -E with stdin content" "1	foo" "$(head -1 $TMPDIR/interval_eval_stdin_out.txt)"
 
-# ── Pull with interval (rate-limited recv) ────────────────────────
+# -- Pull with interval (rate-limited recv) ------------------------
 
 echo "Pull with interval:"
 U=$(ipc)
@@ -303,7 +303,7 @@ wait $PULL_PID
 END=$(date +%s%N)
 ELAPSED_MS=$(( (END - START) / 1000000 ))
 check "pull -i receives correct count" "3" "$(wc -l < $TMPDIR/pull_interval_out.txt | tr -d ' ')"
-# 3 messages at 0.2s interval: ~0.6s total, allow 300–1500ms
+# 3 messages at 0.2s interval: ~0.6s total, allow 300-1500ms
 if [ "$ELAPSED_MS" -ge 300 ] && [ "$ELAPSED_MS" -le 1500 ]; then
   PULL_TIMING="yes"
 else
@@ -311,7 +311,7 @@ else
 fi
 check "pull -i rate-limits recv cadence" "yes" "$PULL_TIMING"
 
-# ── DEALER with --identity ──────────────────────────────────────────
+# -- DEALER with --identity ------------------------------------------
 
 echo "DEALER/ROUTER:"
 U=$(ipc)
@@ -325,17 +325,17 @@ else
   fail "router sees dealer identity + message" "worker-1<TAB>hi from dealer" "$ROUTER_OUT"
 fi
 
-# ── ROUTER sending with --target ─────────────────────────────────────
+# -- ROUTER sending with --target -------------------------------------
 
 echo "ROUTER --target:"
 U=$(ipc)
 $OMQ dealer -c $U --identity "d1" -n 1 $T > $TMPDIR/dealer_recv.txt 2>>"$STDERR_LOG" &
 $OMQ router -b $U --target "d1" -D "routed reply" -d 0.3 $T 2>>"$STDERR_LOG" || true
 wait
-# DEALER receives ["", "routed reply"] — empty delimiter + payload
+# DEALER receives ["", "routed reply"] -- empty delimiter + payload
 check "router --target routes to dealer" "	routed reply" "$(cat $TMPDIR/dealer_recv.txt)"
 
-# ── TCP transport ───────────────────────────────────────────────────
+# -- TCP transport ---------------------------------------------------
 
 echo "TCP transport:"
 $OMQ pull -b tcp://127.0.0.1:17199 -n 1 $T > $TMPDIR/tcp_out.txt 2>>"$STDERR_LOG" &
@@ -343,7 +343,7 @@ echo "tcp works" | $OMQ push -c tcp://127.0.0.1:17199 $T 2>>"$STDERR_LOG"
 wait
 check "tcp transport" "tcp works" "$(cat $TMPDIR/tcp_out.txt)"
 
-# ── IPC filesystem transport ───────────────────────────────────────
+# -- IPC filesystem transport ---------------------------------------
 
 echo "IPC filesystem:"
 IPC_PATH="$TMPDIR/omq_test.sock"
@@ -352,7 +352,7 @@ echo "ipc works" | $OMQ push -c "ipc://$IPC_PATH" $T 2>>"$STDERR_LOG"
 wait
 check "ipc filesystem transport" "ipc works" "$(cat $TMPDIR/ipc_fs_out.txt)"
 
-# ── CURVE encryption ────────────────────────────────────────────────
+# -- CURVE encryption ------------------------------------------------
 
 if ruby -Ilib -e 'require "omq/curve"' 2>>"$STDERR_LOG"; then
   echo "CURVE encryption:"
@@ -376,7 +376,7 @@ else
   echo "CURVE: skipped (omq-curve not installed)"
 fi
 
-# ── Script-based OMQ.incoming ─────────────────────────────────────
+# -- Script-based OMQ.incoming -------------------------------------
 
 echo "Script OMQ.incoming:"
 cat > $TMPDIR/recv_script.rb <<'RUBY'
@@ -388,7 +388,7 @@ echo 'hello' | $OMQ push -c $U $T 2>>"$STDERR_LOG"
 wait
 check "script OMQ.incoming transforms incoming" "HELLO" "$(cat $TMPDIR/script_recv_out.txt)"
 
-# ── Script-based OMQ.outgoing ─────────────────────────────────────
+# -- Script-based OMQ.outgoing -------------------------------------
 
 echo "Script OMQ.outgoing:"
 cat > $TMPDIR/send_script.rb <<'RUBY'
@@ -400,7 +400,7 @@ echo 'hello' | $OMQ push -c $U -r $TMPDIR/send_script.rb $T 2>>"$STDERR_LOG"
 wait
 check "script OMQ.outgoing transforms outgoing" "HELLO" "$(cat $TMPDIR/script_send_out.txt)"
 
-# ── Script with both OMQ.outgoing and OMQ.incoming on REQ ───────────
+# -- Script with both OMQ.outgoing and OMQ.incoming on REQ -----------
 
 echo "Script both directions on REQ:"
 cat > $TMPDIR/both_script.rb <<'RUBY'
@@ -411,10 +411,10 @@ U=$(ipc)
 $OMQ rep -b $U --echo -n 1 $T > /dev/null 2>&1 &
 REQ_BOTH_OUT=$(echo 'hello' | $OMQ req -c $U -r $TMPDIR/both_script.rb -n 1 $T 2>>"$STDERR_LOG")
 wait
-# outgoing upcases "hello" → "HELLO", rep echoes, incoming reverses → "OLLEH"
+# outgoing upcases "hello" -> "HELLO", rep echoes, incoming reverses -> "OLLEH"
 check "script send+recv on REQ" "OLLEH" "$REQ_BOTH_OUT"
 
-# ── Script with at_exit ─────────────────────────────────────────────
+# -- Script with at_exit ---------------------------------------------
 
 echo "Script at_exit:"
 cat > $TMPDIR/atexit_script.rb <<RUBY
@@ -428,7 +428,7 @@ echo 'hello' | $OMQ push -c $U $T 2>>"$STDERR_LOG"
 wait
 check "script at_exit runs on exit" "cleanup_ran" "$(cat $TMPDIR/atexit_marker.txt 2>/dev/null)"
 
-# ── Script with closure state ───────────────────────────────────────
+# -- Script with closure state ---------------------------------------
 
 echo "Script closure state:"
 cat > $TMPDIR/closure_script.rb <<'RUBY'
@@ -445,7 +445,7 @@ printf 'a\nb\nc\n' | $OMQ push -c $U $T 2>>"$STDERR_LOG"
 wait
 check "script closure increments across messages" "msg_3" "$(tail -1 $TMPDIR/closure_out.txt)"
 
-# ── Script OMQ.outgoing + CLI -E override ───────────────────────────
+# -- Script OMQ.outgoing + CLI -E override ---------------------------
 
 echo "Script + CLI override:"
 cat > $TMPDIR/override_script.rb <<'RUBY'
@@ -456,10 +456,10 @@ U=$(ipc)
 $OMQ rep -b $U --echo -n 1 $T > /dev/null 2>&1 &
 OVERRIDE_OUT=$(echo 'Hello' | $OMQ req -c $U -r $TMPDIR/override_script.rb -E '$F.map(&:upcase)' -n 1 $T 2>>"$STDERR_LOG")
 wait
-# CLI -E overrides script outgoing: upcases → "HELLO", rep echoes, script incoming downcases → "hello"
+# CLI -E overrides script outgoing: upcases -> "HELLO", rep echoes, script incoming downcases -> "hello"
 check "CLI -E overrides script OMQ.outgoing" "hello" "$OVERRIDE_OUT"
 
-# ── Script at_exit with closure teardown ────────────────────────────
+# -- Script at_exit with closure teardown ----------------------------
 
 echo "Script at_exit teardown:"
 TEARDOWN_LOG="$TMPDIR/teardown_log.txt"
@@ -474,7 +474,7 @@ printf 'a\nb\nc\n' | $OMQ push -c $U $T 2>>"$STDERR_LOG"
 wait
 check "at_exit sees accumulated closure state" "a,b,c" "$(cat $TMPDIR/teardown_log.txt 2>/dev/null)"
 
-# ── Validation: -e on send-only socket errors ───────────────────────
+# -- Validation: -e on send-only socket errors -----------------------
 
 echo "Validation:"
 $OMQ push -c tcp://x:1 -e '$F' 2>$TMPDIR/val_err.txt && EXITCODE=0 || EXITCODE=$?
@@ -486,17 +486,17 @@ check "-E on recv-only socket errors" "1" "$EXITCODE"
 $OMQ router -c tcp://x:1 -E '$F' --target peer1 2>$TMPDIR/val_err3.txt && EXITCODE=0 || EXITCODE=$?
 check "-E + --target errors" "1" "$EXITCODE"
 
-# ── REQ: -E transforms outgoing, -e transforms reply ───────────────
+# -- REQ: -E transforms outgoing, -e transforms reply ---------------
 
 echo "REQ -E and -e:"
 U=$(ipc)
 $OMQ rep -b $U --echo -n 1 $T > /dev/null 2>&1 &
 REQ_SPLIT_OUT=$(echo 'hello' | $OMQ req -c $U -E '$F.map(&:upcase)' -e '$F.map(&:reverse)' -n 1 $T 2>>"$STDERR_LOG")
 wait
-# -E upcases "hello" → "HELLO", rep echoes "HELLO", -e reverses → "OLLEH"
+# -E upcases "hello" -> "HELLO", rep echoes "HELLO", -e reverses -> "OLLEH"
 check "req -E sends transformed, -e transforms reply" "OLLEH" "$REQ_SPLIT_OUT"
 
-# ── Pipe with -e (recv-eval) ───────────────────────────────────────
+# -- Pipe with -e (recv-eval) ---------------------------------------
 
 echo "Pipe -e:"
 $OMQ push -b ipc://@omq_pipe_in_$$ -D "piped" -d 0.5 -t 3 2>>"$STDERR_LOG" &
@@ -505,7 +505,7 @@ $OMQ pipe -c ipc://@omq_pipe_in_$$ -c ipc://@omq_pipe_out_$$ -e '$F.map(&:upcase
 wait
 check "pipe -e transforms in pipeline" "PIPED" "$(cat $TMPDIR/pipe_e_out.txt)"
 
-# ── Pipe fan-in (--in with multiple sources) ──────────────────────
+# -- Pipe fan-in (--in with multiple sources) ----------------------
 
 echo "Pipe fan-in:"
 $OMQ push -b ipc://@omq_fanin_a_$$ -D "from_a" -d 0.5 -t 3 2>>"$STDERR_LOG" &
@@ -519,7 +519,7 @@ FANIN_CONTENT=$(sort $TMPDIR/fanin_out.txt | tr '\n' ',')
 check "pipe fan-in receives from both sources" "2" "$FANIN_LINES"
 check "pipe fan-in content" "FROM_A,FROM_B," "$FANIN_CONTENT"
 
-# ── Pipe fan-out (--out with multiple sinks) ─────────────────────
+# -- Pipe fan-out (--out with multiple sinks) ---------------------
 
 echo "Pipe fan-out:"
 $OMQ pull -b ipc://@omq_fanout_a_$$ -n 1 -t 3 > $TMPDIR/fanout_a.txt 2>>"$STDERR_LOG" &
@@ -539,7 +539,7 @@ else
   fail "pipe fan-out distributes to both sinks" "both non-empty" "a='$FANOUT_A' b='$FANOUT_B'"
 fi
 
-# ── Pipe --in/--out validation ───────────────────────────────────
+# -- Pipe --in/--out validation -----------------------------------
 
 echo "Pipe validation:"
 $OMQ pipe --in -c tcp://x:1 2>$TMPDIR/val_pipe1.txt && EXITCODE=0 || EXITCODE=$?
@@ -557,7 +557,7 @@ check "pipe duplicate endpoints errors" "1" "$EXITCODE"
 $OMQ push -c tcp://x:1 -b tcp://x:1 2>$TMPDIR/val_dup2.txt && EXITCODE=0 || EXITCODE=$?
 check "duplicate endpoints errors" "1" "$EXITCODE"
 
-# ── HWM options ─────────────────────────────────────────────────────
+# -- HWM options -----------------------------------------------------
 
 echo "HWM options:"
 U=$(ipc)
@@ -566,7 +566,7 @@ echo 'hwm test' | $OMQ push -c $U --send-hwm 10 $T 2>>"$STDERR_LOG"
 wait
 check "--send-hwm and --recv-hwm accepted" "hwm test" "$(cat $TMPDIR/hwm_out.txt)"
 
-# ── Pipe send-hwm: consumer 2 receives after consumer 1 exits ──────
+# -- Pipe send-hwm: consumer 2 receives after consumer 1 exits ------
 
 echo "Pipe send-hwm reconnect:"
 PIPE_SRC="ipc://@omq_pipe_src_$$"
@@ -596,7 +596,7 @@ fi
 kill $PIPE_PID $SRC_PID 2>/dev/null || true
 wait 2>/dev/null || true
 
-# ── Pipe FIFO: multiple source batches must not interleave ──────────
+# -- Pipe FIFO: multiple source batches must not interleave ----------
 
 echo "Pipe FIFO ordering:"
 FIFO_SRC="ipc://@omq_fifo_src_$$"
@@ -614,7 +614,7 @@ ruby -e '10.times { |i| puts "B#{i}#{"Y" * 65536}" }' \
   | $OMQ push -b $FIFO_SRC -t 5 2>>"$STDERR_LOG"
 sleep 0.3
 
-# Consumer pulls 10 messages — should be A0..A9 in order, no B's mixed in.
+# Consumer pulls 10 messages -- should be A0..A9 in order, no B's mixed in.
 $OMQ pull -b $FIFO_DST --recv-hwm 1 -n 10 -t 5 > $TMPDIR/fifo_out.txt 2>>"$STDERR_LOG" &
 FIFO_C_PID=$!
 if wait $FIFO_C_PID 2>/dev/null; then
@@ -632,7 +632,7 @@ fi
 kill $FIFO_PIPE_PID 2>/dev/null || true
 wait 2>/dev/null || true
 
-# ── Pipe: producer before consumer (message delivery) ──────────────
+# -- Pipe: producer before consumer (message delivery) --------------
 
 echo "Pipe producer-first:"
 PF_SRC="ipc://@omq_pf_src_$$"
@@ -641,7 +641,7 @@ $OMQ pipe -c $PF_SRC -c $PF_DST --send-hwm 1 --reconnect-ivl 0.1 -t 10 2>>"$STDE
 PF_PIPE_PID=$!
 sleep 0.3
 
-# Producer sends BEFORE consumer exists — pipe must buffer and deliver.
+# Producer sends BEFORE consumer exists -- pipe must buffer and deliver.
 seq 5 | $OMQ push -b $PF_SRC -t 5 2>>"$STDERR_LOG"
 sleep 0.5
 
@@ -657,7 +657,7 @@ fi
 kill $PF_PIPE_PID 2>/dev/null || true
 wait 2>/dev/null || true
 
-# ── Pipe: modal --compress (--in uncompressed, --out compressed) ────
+# -- Pipe: modal --compress (--in uncompressed, --out compressed) ----
 
 echo "Pipe modal compression:"
 ZC_SRC="ipc://@omq_zc_src_$$"
@@ -706,7 +706,60 @@ fi
 kill $ZD_PIPE_PID 2>/dev/null || true
 wait 2>/dev/null || true
 
-# ── Summary ─────────────────────────────────────────────────────────
+# -- Parallel pull (-P) ----------------------------------------------
+
+echo "Parallel PULL:"
+U=$(ipc)
+seq 10 | $OMQ push -b $U -t 5 2>>"$STDERR_LOG" &
+PPUSH_PID=$!
+sleep 0.5
+$OMQ pull -c $U -P 2 -t 3 > $TMPDIR/ppull_out.txt 2>>"$STDERR_LOG" &
+PPULL_PID=$!
+wait $PPULL_PID 2>/dev/null || true
+kill $PPUSH_PID 2>/dev/null || true; wait $PPUSH_PID 2>/dev/null || true
+PPULL_CONTENT=$(cat $TMPDIR/ppull_out.txt | sort -n | tr '\n' ',')
+check "pull -P2 receives all messages" "1,2,3,4,5,6,7,8,9,10," "$PPULL_CONTENT"
+
+# -- Parallel pull -z (-P with compression) --------------------------
+
+echo "Parallel PULL -z:"
+U=$(ipc)
+seq 10 | $OMQ push -b $U -z -t 5 2>>"$STDERR_LOG" &
+PPUSHZ_PID=$!
+sleep 0.5
+$OMQ pull -c $U -P 2 -z -t 3 > $TMPDIR/ppullz_out.txt 2>>"$STDERR_LOG" &
+PPULLZ_PID=$!
+wait $PPULLZ_PID 2>/dev/null || true
+kill $PPUSHZ_PID 2>/dev/null || true; wait $PPUSHZ_PID 2>/dev/null || true
+PPULLZ_CONTENT=$(cat $TMPDIR/ppullz_out.txt | sort -n | tr '\n' ',')
+check "pull -P2 -z decompresses correctly" "1,2,3,4,5,6,7,8,9,10," "$PPULLZ_CONTENT"
+
+# -- Parallel rep --echo (-P) ----------------------------------------
+
+echo "Parallel REP --echo:"
+U=$(ipc)
+$OMQ rep -c $U -P 2 --echo -t 3 > /dev/null 2>>"$STDERR_LOG" &
+PREP_PID=$!
+sleep 0.5
+PREP_OUT=$(seq 5 | $OMQ req -b $U -n 5 -t 3 2>>"$STDERR_LOG" | sort -n | tr '\n' ',')
+kill $PREP_PID 2>/dev/null || true; wait $PREP_PID 2>/dev/null || true
+check "rep -P2 --echo echoes all" "1,2,3,4,5," "$PREP_OUT"
+
+# -- Parallel gather (-P) --------------------------------------------
+
+echo "Parallel GATHER:"
+U=$(ipc)
+seq 10 | $OMQ scatter -b $U -t 5 2>>"$STDERR_LOG" &
+PSCATTER_PID=$!
+sleep 1
+$OMQ gather -c $U -P 2 -t 3 > $TMPDIR/pgather_out.txt 2>>"$STDERR_LOG" &
+PGATHER_PID=$!
+wait $PGATHER_PID 2>/dev/null || true
+kill $PSCATTER_PID 2>/dev/null || true; wait $PSCATTER_PID 2>/dev/null || true
+PGATHER_CONTENT=$(cat $TMPDIR/pgather_out.txt | sort -n | tr '\n' ',')
+check "gather -P2 receives all messages" "1,2,3,4,5,6,7,8,9,10," "$PGATHER_CONTENT"
+
+# -- Summary ---------------------------------------------------------
 
 echo
 echo "Results: $PASS passed, $FAIL failed"

@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.8.0 — 2026-04-08
+
+### Added
+
+- **`-P` for pull, gather, and rep** — parallel Ractor workers for recv-only
+  and request-reply socket types. Output serialized through `Ractor::Port`
+  to avoid scrambled stdout.
+- **`RactorHelpers` module** — shared Ractor infrastructure: `preresolve_tcp`,
+  `start_log_consumer`, `start_output_consumer` with `SHUTDOWN` sentinel for
+  clean consumer shutdown.
+- **`ParallelWorker` class** — general Ractor worker for parallel socket modes.
+- **Process titles** — all runners set descriptive `proctitle`
+  (`omq TYPE [-z] [-PN] ENDPOINTS`). Pipe shows `omq pipe [-z] [-PN] IN -> OUT`.
+  Bare script mode shows `omq script`.
+
+### Changed
+
+- **ASCII-only source** — replaced all Unicode special characters (em-dashes,
+  box-drawing, arrows) with ASCII equivalents in lib/ and test/.
+- **Pipe default HWM** — pipe sockets now default to HWM of 64 (instead of
+  the socket default 1000) to bound memory with large messages in pipeline
+  stages. Override with `--send-hwm` / `--recv-hwm`.
+- **Message preview** — total byte count first, 12 chars per part, max 3 parts
+  shown (`(1234B) frame1|frame2|frame3|...(5 parts)`).
+- **`SocketSetup.apply_options`** — extracted shared socket option setup,
+  used by `BaseRunner`, `PipeRunner`, `PipeWorker`, and `ParallelWorker`.
+- **`Formatter.preview`** — extracted from duplicated `msg_preview` methods.
+- **Pipe/PipeWorker** — use bare `.new` for sockets, `SocketSetup.apply_options`
+  for configuration, `RactorHelpers` for Ractor infrastructure.
+
 ## 0.7.2 — 2026-04-07
 
 ### Changed

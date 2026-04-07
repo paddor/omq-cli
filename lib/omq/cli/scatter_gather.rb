@@ -10,6 +10,14 @@ module OMQ
 
     # Runner for GATHER sockets (draft; fan-in receive).
     class GatherRunner < BaseRunner
+      def call(task)
+        config.parallel ? run_parallel_workers(:GATHER) : super
+      end
+
+
+      private
+
+
       def run_loop(task) = run_recv_logic
     end
   end

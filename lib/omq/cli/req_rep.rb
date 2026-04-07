@@ -37,6 +37,11 @@ module OMQ
 
     # Runner for REP sockets (synchronous request-reply server).
     class RepRunner < BaseRunner
+      def call(task)
+        config.parallel ? run_parallel_workers(:REP) : super
+      end
+
+
       private
 
 

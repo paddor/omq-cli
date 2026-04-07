@@ -31,7 +31,7 @@ module OMQ
 
 
       # Signal that the first message has been sent or received.
-      # Idempotent — safe to call multiple times.
+      # Idempotent -- safe to call multiple times.
       #
       def ready!
         @barrier.resolve(true) unless @barrier.resolved?

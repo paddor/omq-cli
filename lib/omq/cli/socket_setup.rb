@@ -6,23 +6,30 @@ module OMQ
     # All methods are module-level so callers compose rather than inherit.
     #
     module SocketSetup
+      # Apply common socket options from +config+ to +sock+.
+      #
+      def self.apply_options(sock, config)
+        sock.linger             = config.linger
+        sock.recv_timeout       = config.timeout       if config.timeout
+        sock.send_timeout       = config.timeout       if config.timeout
+        sock.reconnect_interval = config.reconnect_ivl if config.reconnect_ivl
+        sock.heartbeat_interval = config.heartbeat_ivl if config.heartbeat_ivl
+        sock.send_hwm           = config.send_hwm      if config.send_hwm
+        sock.recv_hwm           = config.recv_hwm      if config.recv_hwm
+        sock.sndbuf             = config.sndbuf        if config.sndbuf
+        sock.rcvbuf             = config.rcvbuf        if config.rcvbuf
+      end
+
+
       # Create and fully configure a socket from +klass+ and +config+.
       #
       def self.build(klass, config)
-        sock_opts              = { linger: config.linger }
-        sock_opts[:conflate]   = true if config.conflate && %w[pub radio].include?(config.type_name)
-        sock                   = klass.new(**sock_opts)
-        sock.recv_timeout      = config.timeout    if config.timeout
-        sock.send_timeout      = config.timeout    if config.timeout
-        sock.max_message_size  = config.recv_maxsz if config.recv_maxsz
-        sock.send_hwm            = config.send_hwm       if config.send_hwm
-        sock.recv_hwm            = config.recv_hwm       if config.recv_hwm
-        sock.sndbuf              = config.sndbuf         if config.sndbuf
-        sock.rcvbuf              = config.rcvbuf         if config.rcvbuf
-        sock.reconnect_interval  = config.reconnect_ivl if config.reconnect_ivl
-        sock.heartbeat_interval  = config.heartbeat_ivl if config.heartbeat_ivl
-        sock.identity            = config.identity      if config.identity
-        sock.router_mandatory    = true if config.type_name == "router"
+        sock = klass.new
+        sock.conflate = true if config.conflate && %w[pub radio].include?(config.type_name)
+        apply_options(sock, config)
+        sock.max_message_size = config.recv_maxsz if config.recv_maxsz
+        sock.identity         = config.identity   if config.identity
+        sock.router_mandatory = true if config.type_name == "router"
         sock
       end
 

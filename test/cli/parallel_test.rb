@@ -3,7 +3,7 @@
 require_relative "support"
 require "securerandom"
 
-# ── Parallel execution (-P) ──────────────────────────────────────────
+# -- Parallel execution (-P) ------------------------------------------
 #
 # FIB expression (iterative, no method definition):
 #   n = Integer($F.first); a,b = 0,1; n.times { a,b = b,a+b }; [a.to_s]
@@ -29,6 +29,139 @@ def run_pipe_runner(cfg)
 end
 
 
+# Run a BaseRunner subclass in a dedicated thread.
+def run_runner(runner_class, cfg, socket_class)
+  Thread.new do
+    Sync do |task|
+      runner_class.new(cfg, socket_class).call(task)
+    end
+  end
+end
+
+
+describe "pull -P parallel execution" do
+  it "receives all messages across parallel workers" do
+    url    = ipc_url("pull-parallel")
+    n_msgs = 20
+
+    cfg = make_config(
+      type_name: "pull",
+      endpoints: [OMQ::CLI::Endpoint.new(url, false)],
+      parallel:  2,
+      timeout:   0.5,
+      count:     n_msgs,
+      quiet:     true,
+    )
+
+    io_thread = Thread.new do
+      Sync do
+        src = OMQ::PUSH.new
+        src.linger = 1
+        src.bind(url)
+        src.peer_connected.wait
+        n_msgs.times { |i| src.send([i.to_s]) }
+      ensure
+        src&.close
+      end
+    end
+
+    runner_thread = run_runner(OMQ::CLI::PullRunner, cfg, OMQ::PULL)
+    runner_thread.join
+    io_thread.join
+  end
+
+  it "decompresses messages from parallel workers" do
+    url    = ipc_url("pull-parallel-z")
+    n_msgs = 10
+
+    cfg = make_config(
+      type_name: "pull",
+      endpoints: [OMQ::CLI::Endpoint.new(url, false)],
+      parallel:  2,
+      compress:  true,
+      timeout:   0.5,
+      count:     n_msgs,
+    )
+
+    captured = StringIO.new
+
+    io_thread = Thread.new do
+      Sync do
+        src = OMQ::PUSH.new
+        src.linger = 1
+        src.bind(url)
+        src.peer_connected.wait
+        fmt = OMQ::CLI::Formatter.new(:ascii, compress: true)
+        n_msgs.times { |i| src.send(fmt.compress(["msg-#{i}"])) }
+      ensure
+        src&.close
+      end
+    end
+
+    runner_thread = Thread.new do
+      orig_stdout = $stdout
+      $stdout = captured
+      begin
+        Sync do |task|
+          OMQ::CLI::PullRunner.new(cfg, OMQ::PULL).call(task)
+        end
+      ensure
+        $stdout = orig_stdout
+      end
+    end
+
+    runner_thread.join
+    io_thread.join
+
+    lines = captured.string.lines.map(&:chomp).sort
+    expected = n_msgs.times.map { |i| "msg-#{i}" }.sort
+    assert_equal expected, lines
+  end
+end
+
+
+describe "rep -P parallel execution" do
+  it "echoes requests back from parallel workers" do
+    url    = ipc_url("rep-parallel")
+    n_reqs = 10
+
+    cfg = make_config(
+      type_name: "rep",
+      endpoints: [OMQ::CLI::Endpoint.new(url, false)],
+      parallel:  2,
+      echo:      true,
+      timeout:   0.5,
+      count:     n_reqs,
+      quiet:     true,
+    )
+
+    io_thread = Thread.new do
+      Sync do
+        client = OMQ::REQ.new
+        client.linger = 1
+        client.recv_timeout = 3
+        client.bind(url)
+        client.peer_connected.wait
+
+        results = n_reqs.times.map do |i|
+          client.send(["req-#{i}"])
+          client.receive&.first
+        end
+        results.sort
+      ensure
+        client&.close
+      end
+    end
+
+    runner_thread = run_runner(OMQ::CLI::RepRunner, cfg, OMQ::REP)
+    runner_thread.join
+    results = io_thread.value
+    expected = n_reqs.times.map { |i| "req-#{i}" }.sort
+    assert_equal expected, results
+  end
+end
+
+
 describe "pipe -P parallel execution" do
   it "routes all messages through workers and produces correct fib results" do
     work_url    = ipc_url("pipe-work")
@@ -41,14 +174,14 @@ describe "pipe -P parallel execution" do
       out_endpoints: [OMQ::CLI::Endpoint.new(results_url, false)],
       parallel:      2,
       recv_expr:     FIB_EXPR,
-      timeout:       3,
+      timeout:       1,
     )
 
     io_thread = Thread.new do
       Sync do
         src  = OMQ::PUSH.new(linger: 1)
         src.bind(work_url)
-        sink = OMQ::PULL.new(linger: 0, recv_timeout: 5)
+        sink = OMQ::PULL.new(linger: 0, recv_timeout: 1)
         sink.bind(results_url)
 
         src.peer_connected.wait
@@ -79,14 +212,14 @@ describe "pipe -P parallel execution" do
       out_endpoints: [OMQ::CLI::Endpoint.new(results_url, false)],
       parallel:      2,
       recv_expr:     expr,
-      timeout:       3,
+      timeout:       1,
     )
 
     io_thread = Thread.new do
       Sync do
         src  = OMQ::PUSH.new(linger: 1)
         src.bind(work_url)
-        sink = OMQ::PULL.new(linger: 0, recv_timeout: 10)
+        sink = OMQ::PULL.new(linger: 0, recv_timeout: 2)
         sink.bind(results_url)
 
         src.peer_connected.wait

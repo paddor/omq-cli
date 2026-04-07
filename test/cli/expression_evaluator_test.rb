@@ -190,7 +190,7 @@ describe "BEGIN/END blocks per direction" do
   end
 end
 
-# ── Registration API (OMQ.outgoing / OMQ.incoming) ──────────────
+# -- Registration API (OMQ.outgoing / OMQ.incoming) --------------
 
 describe "OMQ.outgoing / OMQ.incoming registration" do
   after do
@@ -280,7 +280,7 @@ describe "OMQ.outgoing / OMQ.incoming registration" do
 end
 
 
-# ── BEGIN/END blocks ───────────────────────────────────────────────
+# -- BEGIN/END blocks -----------------------------------------------
 
 describe "extract_blocks" do
   def ev(src = nil)

@@ -6,42 +6,6 @@ module OMQ
     # Each worker owns its own Async reactor, PULL socket, and PUSH socket.
     #
     class PipeWorker
-      # Starts a Ractor::Port and a consumer thread that drains log
-      # messages to stderr sequentially. Returns [port, thread].
-      #
-      def self.start_log_consumer
-        port = Ractor::Port.new
-        thread = Thread.new(port) do |p|
-          loop do
-            $stderr.write("#{p.receive}\n")
-          rescue Ractor::ClosedError
-            break
-          end
-        end
-        [port, thread]
-      end
-
-
-      # Resolves TCP hostnames to IP addresses so Ractors don't touch
-      # Resolv::DefaultResolver (which is not shareable).
-      #
-      def self.preresolve_tcp(endpoints)
-        endpoints.flat_map do |ep|
-          url = ep.url
-          if url.start_with?("tcp://")
-            host, port = OMQ::Transport::TCP.parse_endpoint(url)
-            Addrinfo.getaddrinfo(host, port, nil, :STREAM).map do |addr|
-              ip = addr.ip_address
-              ip = "[#{ip}]" if ip.include?(":")
-              Endpoint.new("tcp://#{ip}:#{addr.ip_port}", ep.bind?)
-            end
-          else
-            ep
-          end
-        end
-      end
-
-
       def initialize(config, in_eps, out_eps, log_port)
         @config   = config
         @in_eps   = in_eps
@@ -70,24 +34,14 @@ module OMQ
 
 
       def setup_sockets
-        @pull = OMQ::PULL.new(linger: @config.linger)
-        @push = OMQ::PUSH.new(linger: @config.linger)
-        @pull.recv_timeout      = @config.timeout if @config.timeout
-        @push.send_timeout      = @config.timeout if @config.timeout
-        apply_socket_options(@pull)
-        apply_socket_options(@push)
+        @pull = OMQ::PULL.new
+        @push = OMQ::PUSH.new
+        OMQ::CLI::SocketSetup.apply_options(@pull, @config)
+        OMQ::CLI::SocketSetup.apply_options(@push, @config)
+        @pull.recv_hwm = PipeRunner::PIPE_HWM unless @config.recv_hwm
+        @push.send_hwm = PipeRunner::PIPE_HWM unless @config.send_hwm
         OMQ::CLI::SocketSetup.attach_endpoints(@pull, @in_eps, verbose: false)
         OMQ::CLI::SocketSetup.attach_endpoints(@push, @out_eps, verbose: false)
-      end
-
-
-      def apply_socket_options(sock)
-        sock.reconnect_interval = @config.reconnect_ivl if @config.reconnect_ivl
-        sock.heartbeat_interval = @config.heartbeat_ivl if @config.heartbeat_ivl
-        sock.send_hwm           = @config.send_hwm if @config.send_hwm
-        sock.recv_hwm           = @config.recv_hwm if @config.recv_hwm
-        sock.sndbuf             = @config.sndbuf if @config.sndbuf
-        sock.rcvbuf             = @config.rcvbuf if @config.rcvbuf
       end
 
 
@@ -110,23 +64,14 @@ module OMQ
       def format_event(event)
         case event.type
         when :message_sent
-          "omq: >> #{msg_preview(event.detail[:parts])}"
+          "omq: >> #{OMQ::CLI::Formatter.preview(event.detail[:parts])}"
         when :message_received
-          "omq: << #{msg_preview(event.detail[:parts])}"
+          "omq: << #{OMQ::CLI::Formatter.preview(event.detail[:parts])}"
         else
           ep = event.endpoint ? " #{event.endpoint}" : ""
           detail = event.detail ? " #{event.detail}" : ""
           "omq: #{event.type}#{ep}#{detail}"
         end
-      end
-
-
-      def msg_preview(parts)
-        parts.map { |p|
-          bytes = p.b
-          preview = bytes[0, 10].gsub(/[^[:print:]]/, ".")
-          bytes.bytesize > 10 ? "#{preview}... (#{bytes.bytesize}B)" : preview
-        }.join(" | ")
       end
 
 
@@ -188,7 +133,7 @@ module OMQ
           end
         end
       rescue IO::TimeoutError, Async::TimeoutError
-        # recv timed out — fall through to END block
+        # recv timed out -- fall through to END block
       end
 
 

@@ -4,7 +4,7 @@ require_relative "support"
 
 describe OMQ::CLI::Formatter do
 
-  # ── ASCII format ─────────────────────────────────────────────────
+  # -- ASCII format -------------------------------------------------
 
   describe "ascii" do
     before { @fmt = OMQ::CLI::Formatter.new(:ascii) }
@@ -48,7 +48,7 @@ describe OMQ::CLI::Formatter do
     end
   end
 
-  # ── Quoted format ────────────────────────────────────────────────
+  # -- Quoted format ------------------------------------------------
 
   describe "quoted" do
     before { @fmt = OMQ::CLI::Formatter.new(:quoted) }
@@ -114,7 +114,7 @@ describe OMQ::CLI::Formatter do
     end
   end
 
-  # ── Raw format ───────────────────────────────────────────────────
+  # -- Raw format ---------------------------------------------------
 
   describe "raw" do
     before { @fmt = OMQ::CLI::Formatter.new(:raw) }
@@ -138,7 +138,7 @@ describe OMQ::CLI::Formatter do
     end
   end
 
-  # ── JSONL format ─────────────────────────────────────────────────
+  # -- JSONL format -------------------------------------------------
 
   describe "jsonl" do
     before { @fmt = OMQ::CLI::Formatter.new(:jsonl) }
@@ -174,7 +174,7 @@ describe OMQ::CLI::Formatter do
     end
   end
 
-  # ── MessagePack format ──────────────────────────────────────────
+  # -- MessagePack format ------------------------------------------
 
   describe "msgpack" do
     before { @fmt = OMQ::CLI::Formatter.new(:msgpack) }
@@ -209,7 +209,7 @@ describe OMQ::CLI::Formatter do
     end
   end
 
-  # ── Compression ─────────────────────────────────────────────────
+  # -- Compression -------------------------------------------------
 
   describe "compression" do
     it "passes through when disabled" do

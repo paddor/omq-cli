@@ -2,7 +2,7 @@
 
 require_relative "support"
 
-# ── Output ──────────────────────────────────────────────────────────
+# -- Output ----------------------------------------------------------
 
 describe "output" do
   before do
@@ -30,7 +30,7 @@ describe "output" do
 end
 
 
-# ── Grace period with Range reconnect_interval ─────────────────────
+# -- Grace period with Range reconnect_interval ---------------------
 
 describe "wait_for_peer grace period with range reconnect_ivl" do
   it "uses Range#begin for the grace sleep" do
@@ -60,7 +60,7 @@ describe "wait_for_peer grace period with range reconnect_ivl" do
   end
 end
 
-# ── Config ──────────────────────────────────────────────────────────
+# -- Config ----------------------------------------------------------
 
 describe "OMQ::CLI::Config" do
   it "is frozen" do

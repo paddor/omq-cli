@@ -2,7 +2,7 @@
 
 require_relative "support"
 
-# ── Validation ───────────────────────────────────────────────────────
+# -- Validation -------------------------------------------------------
 
 describe "OMQ::CLI::CliParser.validate!" do
   def base_opts(type_name)
@@ -99,7 +99,7 @@ describe "OMQ::CLI::CliParser.validate!" do
     assert_raises(SystemExit) { quietly { OMQ::CLI::CliParser.validate!(opts) } }
   end
 
-  # ── --recv-eval / --send-eval validation ──────────────────────────
+  # -- --recv-eval / --send-eval validation --------------------------
 
   it "rejects --recv-eval on send-only sockets" do
     %w[push pub scatter radio].each do |type|
@@ -151,7 +151,7 @@ describe "OMQ::CLI::CliParser.validate!" do
     end
   end
 
-  # ── pipe --in/--out validation ──────────────────────────────────
+  # -- pipe --in/--out validation ----------------------------------
 
   def pipe_opts(**overrides)
     {
@@ -250,15 +250,22 @@ describe "OMQ::CLI::CliParser.validate!" do
     assert_raises(SystemExit) { quietly { OMQ::CLI::CliParser.validate!(opts) } }
   end
 
-  it "rejects -P on non-pipe socket types" do
-    %w[push pull pub sub req rep dealer router pair].each do |type|
+  it "rejects -P on unsupported socket types" do
+    %w[push pub sub dealer router pair].each do |type|
       opts = base_opts(type).merge(parallel: 4)
       assert_raises(SystemExit, "expected rejection for #{type}") { quietly { OMQ::CLI::CliParser.validate!(opts) } }
     end
   end
+
+  it "allows -P on pull, gather, and rep" do
+    %w[pull gather rep].each do |type|
+      opts = base_opts(type).merge(parallel: 4)
+      OMQ::CLI::CliParser.validate!(opts)
+    end
+  end
 end
 
-# ── Option parsing ───────────────────────────────────────────────────
+# -- Option parsing ---------------------------------------------------
 
 describe "OMQ::CLI::CliParser.parse" do
   it "parses socket type" do
