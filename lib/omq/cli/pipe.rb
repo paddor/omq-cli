@@ -130,138 +130,109 @@ module OMQ
 
 
       def run_parallel(task)
+        OMQ.freeze_for_ractors!
         in_eps, out_eps = resolve_endpoints
-        pairs = build_socket_pairs(config.parallel, in_eps, out_eps)
-        wait_for_pairs(pairs)
-        setup_parallel_transient(task, pairs)
-        workers = spawn_workers(pairs, build_worker_data)
-        join_workers(workers)
-      ensure
-        pairs&.each do |pull, push|
-          pull&.close
-          push&.close
-        end
-      end
-
-
-      def build_socket_pairs(n_workers, in_eps, out_eps)
-        pull_opts = { linger: config.linger }
-        push_opts = { linger: config.linger }
-        pull_opts[:recv_timeout] = config.timeout if config.timeout
-        push_opts[:send_timeout] = config.timeout if config.timeout
-        n_workers.times.map { build_pull_push(pull_opts, push_opts, in_eps, out_eps) }
-      end
-
-
-      def wait_for_pairs(pairs)
-        with_timeout(config.timeout) do
-          Barrier do |barrier|
-            pairs.each do |pull, push|
-              barrier.async(annotation: "wait push peer") { push.peer_connected.wait }
-              barrier.async(annotation: "wait pull peer") { pull.peer_connected.wait }
-            end
-          end
-        end
-      end
-
-
-      def setup_parallel_transient(task, pairs)
-        return unless config.transient
-        task.async do
-          pairs[0][0].all_peers_gone.wait
-          pairs.each do |pull, _|
-            pull.reconnect_enabled = false
-            pull.close_read
-          end
-        end
-      end
-
-
-      def build_worker_data
-        # Pack worker config into a shareable Hash passed via omq.data —
-        # Ruby 4.0 forbids Ractor blocks from closing over outer locals.
-        ::Ractor.make_shareable({
-          recv_src:    config.recv_expr,
-          fmt_format:  config.format,
-          compr_in:    config.compress_in || config.compress,
-          compr_out:   config.compress_out || config.compress,
-          n_count:     config.count,
-        })
-      end
-
-
-      def spawn_workers(pairs, worker_data)
-        pairs.map do |pull, push|
-          OMQ::Ractor.new(pull, push, serialize: false, data: worker_data) do |omq|
-            pull_p, push_p = omq.sockets
-            d = omq.data
-
-            # Re-compile expression inside Ractor (Procs are not shareable)
-            begin_proc, end_proc, eval_proc =
-              OMQ::CLI::ExpressionEvaluator.compile_inside_ractor(d[:recv_src])
-
-            fmt_in  = OMQ::CLI::Formatter.new(d[:fmt_format], compress: d[:compr_in])
-            fmt_out = OMQ::CLI::Formatter.new(d[:fmt_format], compress: d[:compr_out])
-            # Use a dedicated context object so @ivar expressions in BEGIN/END/eval
-            # work inside Ractors (self in a Ractor is shareable; Object.new is not).
-            _ctx = Object.new
-            _ctx.instance_exec(&begin_proc) if begin_proc
-
-            n_count = d[:n_count]
-            if eval_proc
-              if n_count && n_count > 0
-                n_count.times do
-                  parts = pull_p.receive
-                  break if parts.nil?
-                  parts = OMQ::CLI::ExpressionEvaluator.normalize_result(
-                    _ctx.instance_exec(fmt_in.decompress(parts), &eval_proc)
-                  )
-                  next if parts.nil?
-                  push_p << fmt_out.compress(parts) unless parts.empty?
-                end
-              else
-                loop do
-                  parts = pull_p.receive
-                  break if parts.nil?
-                  parts = OMQ::CLI::ExpressionEvaluator.normalize_result(
-                    _ctx.instance_exec(fmt_in.decompress(parts), &eval_proc)
-                  )
-                  next if parts.nil?
-                  push_p << fmt_out.compress(parts) unless parts.empty?
-                end
-              end
-            else
-              if n_count && n_count > 0
-                n_count.times do
-                  parts = pull_p.receive
-                  break if parts.nil?
-                  push_p << fmt_out.compress(fmt_in.decompress(parts))
-                end
-              else
-                loop do
-                  parts = pull_p.receive
-                  break if parts.nil?
-                  push_p << fmt_out.compress(fmt_in.decompress(parts))
-                end
-              end
-            end
-
-            if end_proc
-              out = OMQ::CLI::ExpressionEvaluator.normalize_result(
-                _ctx.instance_exec(&end_proc)
-              )
-              push_p << fmt_out.compress(out) if out && !out.empty?
-            end
-          end
-        end
-      end
-
-
-      def join_workers(workers)
+        workers = spawn_workers(config, in_eps, out_eps)
         workers.each do |w|
-          w.value
-        rescue Ractor::RemoteError => e
+          w.join
+        rescue ::Ractor::RemoteError => e
           $stderr.write("omq: Ractor error: #{e.cause&.message || e.message}\n")
+        end
+      end
+
+
+      def spawn_workers(config, in_eps, out_eps)
+        config.parallel.times.map do
+          ::Ractor.new(config, in_eps, out_eps) do |cfg, ins, outs|
+            Async do
+              pull = OMQ::PULL.new(linger: cfg.linger)
+              push = OMQ::PUSH.new(linger: cfg.linger)
+              pull.recv_timeout      = cfg.timeout if cfg.timeout
+              push.send_timeout      = cfg.timeout if cfg.timeout
+              pull.reconnect_interval = cfg.reconnect_ivl if cfg.reconnect_ivl
+              push.reconnect_interval = cfg.reconnect_ivl if cfg.reconnect_ivl
+              pull.heartbeat_interval = cfg.heartbeat_ivl if cfg.heartbeat_ivl
+              push.heartbeat_interval = cfg.heartbeat_ivl if cfg.heartbeat_ivl
+              pull.send_hwm          = cfg.send_hwm if cfg.send_hwm
+              pull.recv_hwm          = cfg.recv_hwm if cfg.recv_hwm
+              push.send_hwm          = cfg.send_hwm if cfg.send_hwm
+              push.recv_hwm          = cfg.recv_hwm if cfg.recv_hwm
+              pull.sndbuf            = cfg.sndbuf if cfg.sndbuf
+              pull.rcvbuf            = cfg.rcvbuf if cfg.rcvbuf
+              push.sndbuf            = cfg.sndbuf if cfg.sndbuf
+              push.rcvbuf            = cfg.rcvbuf if cfg.rcvbuf
+
+              OMQ::CLI::SocketSetup.attach_endpoints(pull, ins, verbose: cfg.verbose >= 1)
+              OMQ::CLI::SocketSetup.attach_endpoints(push, outs, verbose: cfg.verbose >= 1)
+
+              Barrier do |barrier|
+                barrier.async { pull.peer_connected.wait }
+                barrier.async { push.peer_connected.wait }
+              end
+
+              begin_proc, end_proc, eval_proc =
+                OMQ::CLI::ExpressionEvaluator.compile_inside_ractor(cfg.recv_expr)
+
+              fmt_in  = OMQ::CLI::Formatter.new(cfg.format, compress: cfg.compress_in || cfg.compress)
+              fmt_out = OMQ::CLI::Formatter.new(cfg.format, compress: cfg.compress_out || cfg.compress)
+
+              _ctx = Object.new
+              _ctx.instance_exec(&begin_proc) if begin_proc
+
+              n_count = cfg.count
+              begin
+                if eval_proc
+                  if n_count && n_count > 0
+                    n_count.times do
+                      parts = pull.receive
+                      break if parts.nil?
+                      parts = OMQ::CLI::ExpressionEvaluator.normalize_result(
+                        _ctx.instance_exec(fmt_in.decompress(parts), &eval_proc)
+                      )
+                      next if parts.nil?
+                      push << fmt_out.compress(parts) unless parts.empty?
+                    end
+                  else
+                    loop do
+                      parts = pull.receive
+                      break if parts.nil?
+                      parts = OMQ::CLI::ExpressionEvaluator.normalize_result(
+                        _ctx.instance_exec(fmt_in.decompress(parts), &eval_proc)
+                      )
+                      next if parts.nil?
+                      push << fmt_out.compress(parts) unless parts.empty?
+                    end
+                  end
+                else
+                  if n_count && n_count > 0
+                    n_count.times do
+                      parts = pull.receive
+                      break if parts.nil?
+                      push << fmt_out.compress(fmt_in.decompress(parts))
+                    end
+                  else
+                    loop do
+                      parts = pull.receive
+                      break if parts.nil?
+                      push << fmt_out.compress(fmt_in.decompress(parts))
+                    end
+                  end
+                end
+              rescue IO::TimeoutError, Async::TimeoutError
+                # recv timed out — fall through to END block
+              end
+
+              if end_proc
+                out = OMQ::CLI::ExpressionEvaluator.normalize_result(
+                  _ctx.instance_exec(&end_proc)
+                )
+                push << fmt_out.compress(out) if out && !out.empty?
+              end
+            ensure
+              pull&.close
+              push&.close
+            end
+          end
         end
       end
 

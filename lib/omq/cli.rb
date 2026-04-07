@@ -9,7 +9,6 @@ require_relative "cli/expression_evaluator"
 require_relative "cli/socket_setup"
 require_relative "cli/routing_helper"
 require_relative "cli/transient_monitor"
-require_relative "cli/parallel_recv_runner"
 require_relative "cli/base_runner"
 require_relative "cli/push_pull"
 require_relative "cli/pub_sub"
@@ -199,8 +198,6 @@ module OMQ
       require "console"
 
       CliParser.validate_gems!(config)
-      require "omq/ractor" if config.parallel
-
       trap("INT")  { Process.exit!(0) }
       trap("TERM") { Process.exit!(0) }
 

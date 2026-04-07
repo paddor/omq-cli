@@ -51,7 +51,7 @@ module OMQ
 
       def setup_socket
         @sock = create_socket
-        attach_endpoints unless config.parallel
+        attach_endpoints
         setup_curve
         setup_subscriptions
         compile_expr
@@ -262,17 +262,6 @@ module OMQ
         parts = eval_recv_expr(parts)
         output(parts)
         1
-      end
-
-
-      # Parallel recv-eval: delegates to ParallelRecvRunner.
-      #
-      def run_parallel_recv(task)
-        # @sock was created by call() before run_loop; close it now so it doesn't
-        # steal messages from the N worker sockets ParallelRecvRunner creates.
-        @sock&.close
-        @sock = nil
-        ParallelRecvRunner.new(@klass, config, @fmt, method(:output)).run(task)
       end
 
 

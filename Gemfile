@@ -9,7 +9,6 @@ gem "rake"
 gem "async-debug" if ENV["OMQ_DEV"]
 
 gem "omq",                  path: ENV["OMQ_DEV"] ? "../omq" : nil
-gem "omq-ractor",           path: ENV["OMQ_DEV"] ? "../omq-ractor" : nil
 gem "omq-rfc-clientserver", path: ENV["OMQ_DEV"] ? "../omq-rfc-clientserver" : nil
 gem "omq-rfc-radiodish",    path: ENV["OMQ_DEV"] ? "../omq-rfc-radiodish" : nil
 gem "omq-rfc-scattergather", path: ENV["OMQ_DEV"] ? "../omq-rfc-scattergather" : nil

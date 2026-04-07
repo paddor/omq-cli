@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.7.0 — 2026-04-07
+
+### Changed
+
+- **`-P` restricted to pipe only** — parallel Ractor workers are no longer
+  available on recv-only socket types (pull, sub, gather, dish). Pipe workers
+  now use bare Ractors with their own Async reactors and OMQ sockets, removing
+  the `omq-ractor` dependency entirely.
+- **`-P` range capped to 1..16** — default is still `nproc`, clamped to 16.
+  `-P 1` is valid (single Ractor worker, no sockets on main thread).
+- **Removed `omq-ractor` dependency** — no longer needed.
+- **Removed `ParallelRecvRunner`** — the Ractor bridge infrastructure for
+  non-pipe socket types has been deleted.
+
+### Fixed
+
+- **Pipe `-P` END blocks execute after timeout** — worker recv loops now
+  catch `IO::TimeoutError` so BEGIN/END expressions run to completion.
+
 ## 0.6.0 — 2026-04-07
 
 ### Added

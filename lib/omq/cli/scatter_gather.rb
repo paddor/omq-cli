@@ -10,9 +10,7 @@ module OMQ
 
     # Runner for GATHER sockets (draft; fan-in receive).
     class GatherRunner < BaseRunner
-      def run_loop(task)
-        config.parallel ? run_parallel_recv(task) : run_recv_logic
-      end
+      def run_loop(task) = run_recv_logic
     end
   end
 end

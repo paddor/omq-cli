@@ -8,7 +8,6 @@ require "omq/rfc/radiodish"
 require "omq/rfc/scattergather"
 require "omq/rfc/channel"
 require "omq/rfc/p2p"
-require "omq/ractor"
 require "async"
 
 require "console"
