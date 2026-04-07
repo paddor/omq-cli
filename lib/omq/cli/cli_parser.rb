@@ -219,6 +219,8 @@ module OMQ
         rcvbuf:           nil,
         conflate:         false,
         compress:         false,
+        compress_in:      false,
+        compress_out:     false,
         send_expr:        nil,
         recv_expr:        nil,
         parallel:         nil,
@@ -346,7 +348,17 @@ module OMQ
           o.on("--conflate", "Keep only last message per subscriber (PUB/RADIO)") { opts[:conflate] = true }
 
           o.separator "\nCompression:"
-          o.on("-z", "--compress", "Zstandard compression per frame") { require "zstd-ruby"; opts[:compress] = true }
+          o.on("-z", "--compress", "Zstandard compression per frame (modal with --in/--out)") do
+            require "zstd-ruby"
+            case pipe_side
+            when :in
+              opts[:compress_in] = true
+            when :out
+              opts[:compress_out] = true
+            else
+              opts[:compress] = true
+            end
+          end
 
           o.separator "\nProcessing (-e = incoming, -E = outgoing):"
           o.on("-e", "--recv-eval EXPR", "Eval Ruby for each incoming message ($F = parts)") { |v| opts[:recv_expr] = v }

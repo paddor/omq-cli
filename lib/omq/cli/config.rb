@@ -44,6 +44,8 @@ module OMQ
       :rcvbuf,
       :conflate,
       :compress,
+      :compress_in,
+      :compress_out,
       :send_expr,
       :recv_expr,
       :parallel,

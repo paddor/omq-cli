@@ -404,6 +404,34 @@ describe "OMQ::CLI::CliParser.parse" do
     assert_nil opts[:crypto]
   end
 
+  it "parses --compress as global" do
+    opts = OMQ::CLI::CliParser.parse(["push", "-c", "tcp://x:1", "--compress"])
+    assert opts[:compress]
+    refute opts[:compress_in]
+    refute opts[:compress_out]
+  end
+
+  it "parses --compress after --in as compress_in" do
+    opts = OMQ::CLI::CliParser.parse(["pipe", "--in", "-c", "tcp://x:1", "--compress", "--out", "-c", "tcp://x:2"])
+    refute opts[:compress]
+    assert opts[:compress_in]
+    refute opts[:compress_out]
+  end
+
+  it "parses --compress after --out as compress_out" do
+    opts = OMQ::CLI::CliParser.parse(["pipe", "--in", "-c", "tcp://x:1", "--out", "-c", "tcp://x:2", "--compress"])
+    refute opts[:compress]
+    refute opts[:compress_in]
+    assert opts[:compress_out]
+  end
+
+  it "parses --compress on both sides" do
+    opts = OMQ::CLI::CliParser.parse(["pipe", "--in", "-c", "tcp://x:1", "--compress", "--out", "-c", "tcp://x:2", "--compress"])
+    refute opts[:compress]
+    assert opts[:compress_in]
+    assert opts[:compress_out]
+  end
+
   it "parses -r as a deferred script path" do
     opts = OMQ::CLI::CliParser.parse(["-r", "./myscript.rb", "pull", "-b", "tcp://:1"])
     assert_includes opts[:scripts], File.expand_path("./myscript.rb")

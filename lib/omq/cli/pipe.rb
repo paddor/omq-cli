@@ -13,6 +13,8 @@ module OMQ
       def initialize(config)
         @config = config
         @fmt    = Formatter.new(config.format, compress: config.compress)
+        @fmt_in  = Formatter.new(config.format, compress: config.compress_in || config.compress)
+        @fmt_out = Formatter.new(config.format, compress: config.compress_out || config.compress)
       end
 
 
@@ -112,10 +114,10 @@ module OMQ
         loop do
           parts = @pull.receive
           break if parts.nil?
-          parts = @fmt.decompress(parts)
+          parts = @fmt_in.decompress(parts)
           parts = eval_recv_expr(parts)
           if parts && !parts.empty?
-            out = @fmt.compress(parts)
+            out = @fmt_out.compress(parts)
             @push.send(out)
           end
           i += 1
@@ -179,10 +181,11 @@ module OMQ
         # Pack worker config into a shareable Hash passed via omq.data —
         # Ruby 4.0 forbids Ractor blocks from closing over outer locals.
         ::Ractor.make_shareable({
-          recv_src:   config.recv_expr,
-          fmt_format: config.format,
-          fmt_compr:  config.compress,
-          n_count:    config.count,
+          recv_src:    config.recv_expr,
+          fmt_format:  config.format,
+          compr_in:    config.compress_in || config.compress,
+          compr_out:   config.compress_out || config.compress,
+          n_count:     config.count,
         })
       end
 
@@ -197,7 +200,8 @@ module OMQ
             begin_proc, end_proc, eval_proc =
               OMQ::CLI::ExpressionEvaluator.compile_inside_ractor(d[:recv_src])
 
-            formatter = OMQ::CLI::Formatter.new(d[:fmt_format], compress: d[:fmt_compr])
+            fmt_in  = OMQ::CLI::Formatter.new(d[:fmt_format], compress: d[:compr_in])
+            fmt_out = OMQ::CLI::Formatter.new(d[:fmt_format], compress: d[:compr_out])
             # Use a dedicated context object so @ivar expressions in BEGIN/END/eval
             # work inside Ractors (self in a Ractor is shareable; Object.new is not).
             _ctx = Object.new
@@ -210,20 +214,20 @@ module OMQ
                   parts = pull_p.receive
                   break if parts.nil?
                   parts = OMQ::CLI::ExpressionEvaluator.normalize_result(
-                    _ctx.instance_exec(formatter.decompress(parts), &eval_proc)
+                    _ctx.instance_exec(fmt_in.decompress(parts), &eval_proc)
                   )
                   next if parts.nil?
-                  push_p << formatter.compress(parts) unless parts.empty?
+                  push_p << fmt_out.compress(parts) unless parts.empty?
                 end
               else
                 loop do
                   parts = pull_p.receive
                   break if parts.nil?
                   parts = OMQ::CLI::ExpressionEvaluator.normalize_result(
-                    _ctx.instance_exec(formatter.decompress(parts), &eval_proc)
+                    _ctx.instance_exec(fmt_in.decompress(parts), &eval_proc)
                   )
                   next if parts.nil?
-                  push_p << formatter.compress(parts) unless parts.empty?
+                  push_p << fmt_out.compress(parts) unless parts.empty?
                 end
               end
             else
@@ -231,13 +235,13 @@ module OMQ
                 n_count.times do
                   parts = pull_p.receive
                   break if parts.nil?
-                  push_p << formatter.compress(formatter.decompress(parts))
+                  push_p << fmt_out.compress(fmt_in.decompress(parts))
                 end
               else
                 loop do
                   parts = pull_p.receive
                   break if parts.nil?
-                  push_p << formatter.compress(formatter.decompress(parts))
+                  push_p << fmt_out.compress(fmt_in.decompress(parts))
                 end
               end
             end
@@ -246,7 +250,7 @@ module OMQ
               out = OMQ::CLI::ExpressionEvaluator.normalize_result(
                 _ctx.instance_exec(&end_proc)
               )
-              push_p << formatter.compress(out) if out && !out.empty?
+              push_p << fmt_out.compress(out) if out && !out.empty?
             end
           end
         end

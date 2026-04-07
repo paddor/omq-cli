@@ -50,6 +50,8 @@ def make_config(type_name:, **overrides)
     rcvbuf:          nil,
     conflate:        false,
     compress:        false,
+    compress_in:     false,
+    compress_out:    false,
     send_expr:       nil,
     recv_expr:       nil,
     parallel:        nil,

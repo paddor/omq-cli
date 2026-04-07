@@ -657,6 +657,55 @@ fi
 kill $PF_PIPE_PID 2>/dev/null || true
 wait 2>/dev/null || true
 
+# ── Pipe: modal --compress (--in uncompressed, --out compressed) ────
+
+echo "Pipe modal compression:"
+ZC_SRC="ipc://@omq_zc_src_$$"
+ZC_DST="ipc://@omq_zc_dst_$$"
+# Pipe: input is plain, output is compressed.
+$OMQ pipe --in -c $ZC_SRC --out --compress -c $ZC_DST --reconnect-ivl 0.1 -t 10 2>>"$STDERR_LOG" &
+ZC_PIPE_PID=$!
+sleep 0.3
+
+# Source sends plain (no --compress).
+seq 3 | $OMQ push -b $ZC_SRC -t 5 2>>"$STDERR_LOG"
+sleep 0.3
+
+# Sink receives with --compress (decompresses output from pipe).
+$OMQ pull -b $ZC_DST --compress -n 3 -t 5 > $TMPDIR/zc_out.txt 2>>"$STDERR_LOG" &
+ZC_C_PID=$!
+if wait $ZC_C_PID 2>/dev/null; then
+  ZC_CONTENT=$(cat $TMPDIR/zc_out.txt | tr '\n' ',')
+  check "pipe --out --compress: plain in, compressed out" "1,2,3," "$ZC_CONTENT"
+else
+  fail "pipe --out --compress: plain in, compressed out" "3 messages" "timeout"
+fi
+kill $ZC_PIPE_PID 2>/dev/null || true
+wait 2>/dev/null || true
+
+# Reverse: input compressed, output plain.
+ZD_SRC="ipc://@omq_zd_src_$$"
+ZD_DST="ipc://@omq_zd_dst_$$"
+$OMQ pipe --in --compress -c $ZD_SRC --out -c $ZD_DST --reconnect-ivl 0.1 -t 10 2>>"$STDERR_LOG" &
+ZD_PIPE_PID=$!
+sleep 0.3
+
+# Source sends compressed.
+seq 3 | $OMQ push -b $ZD_SRC --compress -t 5 2>>"$STDERR_LOG"
+sleep 0.3
+
+# Sink receives plain (no --compress).
+$OMQ pull -b $ZD_DST -n 3 -t 5 > $TMPDIR/zd_out.txt 2>>"$STDERR_LOG" &
+ZD_C_PID=$!
+if wait $ZD_C_PID 2>/dev/null; then
+  ZD_CONTENT=$(cat $TMPDIR/zd_out.txt | tr '\n' ',')
+  check "pipe --in --compress: compressed in, plain out" "1,2,3," "$ZD_CONTENT"
+else
+  fail "pipe --in --compress: compressed in, plain out" "3 messages" "timeout"
+fi
+kill $ZD_PIPE_PID 2>/dev/null || true
+wait 2>/dev/null || true
+
 # ── Summary ─────────────────────────────────────────────────────────
 
 echo
