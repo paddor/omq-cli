@@ -135,7 +135,11 @@ module OMQ
         in_eps  = preresolve_tcp(in_eps)
         out_eps = preresolve_tcp(out_eps)
         log_port, log_thread = start_log_consumer
-        workers = spawn_workers(config, in_eps, out_eps, log_port)
+        workers = config.parallel.times.map do
+          ::Ractor.new(config, in_eps, out_eps, log_port) do |cfg, ins, outs, lport|
+            PipeWorker.new(cfg, ins, outs, lport).call
+          end
+        end
         workers.each do |w|
           w.join
         rescue ::Ractor::RemoteError => e
@@ -144,128 +148,6 @@ module OMQ
       ensure
         log_port.close
         log_thread.join
-      end
-
-
-      def spawn_workers(config, in_eps, out_eps, log_port)
-        config.parallel.times.map do
-          ::Ractor.new(config, in_eps, out_eps, log_port) do |cfg, ins, outs, lport|
-            Async do
-              pull = OMQ::PULL.new(linger: cfg.linger)
-              push = OMQ::PUSH.new(linger: cfg.linger)
-              pull.recv_timeout      = cfg.timeout if cfg.timeout
-              push.send_timeout      = cfg.timeout if cfg.timeout
-              pull.reconnect_interval = cfg.reconnect_ivl if cfg.reconnect_ivl
-              push.reconnect_interval = cfg.reconnect_ivl if cfg.reconnect_ivl
-              pull.heartbeat_interval = cfg.heartbeat_ivl if cfg.heartbeat_ivl
-              push.heartbeat_interval = cfg.heartbeat_ivl if cfg.heartbeat_ivl
-              pull.send_hwm          = cfg.send_hwm if cfg.send_hwm
-              pull.recv_hwm          = cfg.recv_hwm if cfg.recv_hwm
-              push.send_hwm          = cfg.send_hwm if cfg.send_hwm
-              push.recv_hwm          = cfg.recv_hwm if cfg.recv_hwm
-              pull.sndbuf            = cfg.sndbuf if cfg.sndbuf
-              pull.rcvbuf            = cfg.rcvbuf if cfg.rcvbuf
-              push.sndbuf            = cfg.sndbuf if cfg.sndbuf
-              push.rcvbuf            = cfg.rcvbuf if cfg.rcvbuf
-
-              OMQ::CLI::SocketSetup.attach_endpoints(pull, ins, verbose: false)
-              OMQ::CLI::SocketSetup.attach_endpoints(push, outs, verbose: false)
-
-              if cfg.verbose >= 1
-                ins.each { |ep| lport.send(ep.bind? ? "Bound to #{ep.url}" : "Connecting to #{ep.url}") }
-                outs.each { |ep| lport.send(ep.bind? ? "Bound to #{ep.url}" : "Connecting to #{ep.url}") }
-              end
-
-              if cfg.verbose >= 2
-                trace = cfg.verbose >= 3
-                [pull, push].each do |sock|
-                  sock.monitor(verbose: trace) do |event|
-                    line = case event.type
-                    when :message_sent
-                      parts = event.detail[:parts]
-                      "omq: >> #{parts.map { |p| b = p.b; s = b[0,10].gsub(/[^[:print:]]/, "."); b.bytesize > 10 ? "#{s}... (#{b.bytesize}B)" : s }.join(" | ")}"
-                    when :message_received
-                      parts = event.detail[:parts]
-                      "omq: << #{parts.map { |p| b = p.b; s = b[0,10].gsub(/[^[:print:]]/, "."); b.bytesize > 10 ? "#{s}... (#{b.bytesize}B)" : s }.join(" | ")}"
-                    else
-                      ep = event.endpoint ? " #{event.endpoint}" : ""
-                      detail = event.detail ? " #{event.detail}" : ""
-                      "omq: #{event.type}#{ep}#{detail}"
-                    end
-                    lport.send(line)
-                  end
-                end
-              end
-
-              Barrier do |barrier|
-                barrier.async { pull.peer_connected.wait }
-                barrier.async { push.peer_connected.wait }
-              end
-
-              begin_proc, end_proc, eval_proc =
-                OMQ::CLI::ExpressionEvaluator.compile_inside_ractor(cfg.recv_expr)
-
-              fmt_in  = OMQ::CLI::Formatter.new(cfg.format, compress: cfg.compress_in || cfg.compress)
-              fmt_out = OMQ::CLI::Formatter.new(cfg.format, compress: cfg.compress_out || cfg.compress)
-
-              _ctx = Object.new
-              _ctx.instance_exec(&begin_proc) if begin_proc
-
-              n_count = cfg.count
-              begin
-                if eval_proc
-                  if n_count && n_count > 0
-                    n_count.times do
-                      parts = pull.receive
-                      break if parts.nil?
-                      parts = OMQ::CLI::ExpressionEvaluator.normalize_result(
-                        _ctx.instance_exec(fmt_in.decompress(parts), &eval_proc)
-                      )
-                      next if parts.nil?
-                      push << fmt_out.compress(parts) unless parts.empty?
-                    end
-                  else
-                    loop do
-                      parts = pull.receive
-                      break if parts.nil?
-                      parts = OMQ::CLI::ExpressionEvaluator.normalize_result(
-                        _ctx.instance_exec(fmt_in.decompress(parts), &eval_proc)
-                      )
-                      next if parts.nil?
-                      push << fmt_out.compress(parts) unless parts.empty?
-                    end
-                  end
-                else
-                  if n_count && n_count > 0
-                    n_count.times do
-                      parts = pull.receive
-                      break if parts.nil?
-                      push << fmt_out.compress(fmt_in.decompress(parts))
-                    end
-                  else
-                    loop do
-                      parts = pull.receive
-                      break if parts.nil?
-                      push << fmt_out.compress(fmt_in.decompress(parts))
-                    end
-                  end
-                end
-              rescue IO::TimeoutError, Async::TimeoutError
-                # recv timed out — fall through to END block
-              end
-
-              if end_proc
-                out = OMQ::CLI::ExpressionEvaluator.normalize_result(
-                  _ctx.instance_exec(&end_proc)
-                )
-                push << fmt_out.compress(out) if out && !out.empty?
-              end
-            ensure
-              pull&.close
-              push&.close
-            end
-          end
-        end
       end
 
 
@@ -361,6 +243,170 @@ module OMQ
           preview = bytes[0, 10].gsub(/[^[:print:]]/, ".")
           bytes.bytesize > 10 ? "#{preview}... (#{bytes.bytesize}B)" : preview
         }.join(" | ")
+      end
+    end
+
+
+    # Worker that runs inside a Ractor for pipe -P parallel mode.
+    # Each worker owns its own Async reactor, PULL socket, and PUSH socket.
+    #
+    class PipeWorker
+      def initialize(config, in_eps, out_eps, log_port)
+        @config   = config
+        @in_eps   = in_eps
+        @out_eps  = out_eps
+        @log_port = log_port
+      end
+
+
+      def call
+        Async do
+          setup_sockets
+          log_endpoints if @config.verbose >= 1
+          start_monitors if @config.verbose >= 2
+          wait_for_peers
+          compile_expr
+          run_message_loop
+          run_end_block
+        ensure
+          @pull&.close
+          @push&.close
+        end
+      end
+
+
+      private
+
+
+      def setup_sockets
+        @pull = OMQ::PULL.new(linger: @config.linger)
+        @push = OMQ::PUSH.new(linger: @config.linger)
+        @pull.recv_timeout      = @config.timeout if @config.timeout
+        @push.send_timeout      = @config.timeout if @config.timeout
+        apply_socket_options(@pull)
+        apply_socket_options(@push)
+        OMQ::CLI::SocketSetup.attach_endpoints(@pull, @in_eps, verbose: false)
+        OMQ::CLI::SocketSetup.attach_endpoints(@push, @out_eps, verbose: false)
+      end
+
+
+      def apply_socket_options(sock)
+        sock.reconnect_interval = @config.reconnect_ivl if @config.reconnect_ivl
+        sock.heartbeat_interval = @config.heartbeat_ivl if @config.heartbeat_ivl
+        sock.send_hwm           = @config.send_hwm if @config.send_hwm
+        sock.recv_hwm           = @config.recv_hwm if @config.recv_hwm
+        sock.sndbuf             = @config.sndbuf if @config.sndbuf
+        sock.rcvbuf             = @config.rcvbuf if @config.rcvbuf
+      end
+
+
+      def log_endpoints
+        @in_eps.each { |ep| @log_port.send(ep.bind? ? "Bound to #{ep.url}" : "Connecting to #{ep.url}") }
+        @out_eps.each { |ep| @log_port.send(ep.bind? ? "Bound to #{ep.url}" : "Connecting to #{ep.url}") }
+      end
+
+
+      def start_monitors
+        trace = @config.verbose >= 3
+        [@pull, @push].each do |sock|
+          sock.monitor(verbose: trace) do |event|
+            @log_port.send(format_event(event))
+          end
+        end
+      end
+
+
+      def format_event(event)
+        case event.type
+        when :message_sent
+          "omq: >> #{msg_preview(event.detail[:parts])}"
+        when :message_received
+          "omq: << #{msg_preview(event.detail[:parts])}"
+        else
+          ep = event.endpoint ? " #{event.endpoint}" : ""
+          detail = event.detail ? " #{event.detail}" : ""
+          "omq: #{event.type}#{ep}#{detail}"
+        end
+      end
+
+
+      def msg_preview(parts)
+        parts.map { |p|
+          bytes = p.b
+          preview = bytes[0, 10].gsub(/[^[:print:]]/, ".")
+          bytes.bytesize > 10 ? "#{preview}... (#{bytes.bytesize}B)" : preview
+        }.join(" | ")
+      end
+
+
+      def wait_for_peers
+        Barrier do |barrier|
+          barrier.async { @pull.peer_connected.wait }
+          barrier.async { @push.peer_connected.wait }
+        end
+      end
+
+
+      def compile_expr
+        @begin_proc, @end_proc, @eval_proc =
+          OMQ::CLI::ExpressionEvaluator.compile_inside_ractor(@config.recv_expr)
+        @fmt_in  = OMQ::CLI::Formatter.new(@config.format, compress: @config.compress_in || @config.compress)
+        @fmt_out = OMQ::CLI::Formatter.new(@config.format, compress: @config.compress_out || @config.compress)
+        @ctx = Object.new
+        @ctx.instance_exec(&@begin_proc) if @begin_proc
+      end
+
+
+      def run_message_loop
+        n = @config.count
+        if @eval_proc
+          if n && n > 0
+            n.times do
+              parts = @pull.receive
+              break if parts.nil?
+              parts = OMQ::CLI::ExpressionEvaluator.normalize_result(
+                @ctx.instance_exec(@fmt_in.decompress(parts), &@eval_proc)
+              )
+              next if parts.nil?
+              @push << @fmt_out.compress(parts) unless parts.empty?
+            end
+          else
+            loop do
+              parts = @pull.receive
+              break if parts.nil?
+              parts = OMQ::CLI::ExpressionEvaluator.normalize_result(
+                @ctx.instance_exec(@fmt_in.decompress(parts), &@eval_proc)
+              )
+              next if parts.nil?
+              @push << @fmt_out.compress(parts) unless parts.empty?
+            end
+          end
+        else
+          if n && n > 0
+            n.times do
+              parts = @pull.receive
+              break if parts.nil?
+              @push << @fmt_out.compress(@fmt_in.decompress(parts))
+            end
+          else
+            loop do
+              parts = @pull.receive
+              break if parts.nil?
+              @push << @fmt_out.compress(@fmt_in.decompress(parts))
+            end
+          end
+        end
+      rescue IO::TimeoutError, Async::TimeoutError
+        # recv timed out — fall through to END block
+      end
+
+
+      def run_end_block
+        return unless @end_proc
+        out = OMQ::CLI::ExpressionEvaluator.normalize_result(
+          @ctx.instance_exec(&@end_proc)
+        )
+        @push << @fmt_out.compress(out) if out && !out.empty?
       end
     end
   end
