@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.6.0 — 2026-04-07
+
+### Added
+
+- **Modal `--compress` for pipe `--in`/`--out`** — `--compress` after `--in`
+  decompresses input, after `--out` compresses output. Enables mixed pipelines
+  like plain input → compressed output:
+  `omq pipe --in -c src --out --compress -c dst`.
+  Without `--in`/`--out`, `--compress` applies to both directions as before.
+
+### Fixed
+
+- **Abort with clear message on decompression failure** — receiving an
+  uncompressed message with `--compress` now prints a hint instead of
+  silently killing the Async task with exit code 0.
+
 ## 0.5.4 — 2026-04-07
 
 ### Fixed
