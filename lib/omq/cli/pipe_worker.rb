@@ -6,6 +6,42 @@ module OMQ
     # Each worker owns its own Async reactor, PULL socket, and PUSH socket.
     #
     class PipeWorker
+      # Starts a Ractor::Port and a consumer thread that drains log
+      # messages to stderr sequentially. Returns [port, thread].
+      #
+      def self.start_log_consumer
+        port = Ractor::Port.new
+        thread = Thread.new(port) do |p|
+          loop do
+            $stderr.write("#{p.receive}\n")
+          rescue Ractor::ClosedError
+            break
+          end
+        end
+        [port, thread]
+      end
+
+
+      # Resolves TCP hostnames to IP addresses so Ractors don't touch
+      # Resolv::DefaultResolver (which is not shareable).
+      #
+      def self.preresolve_tcp(endpoints)
+        endpoints.flat_map do |ep|
+          url = ep.url
+          if url.start_with?("tcp://")
+            host, port = OMQ::Transport::TCP.parse_endpoint(url)
+            Addrinfo.getaddrinfo(host, port, nil, :STREAM).map do |addr|
+              ip = addr.ip_address
+              ip = "[#{ip}]" if ip.include?(":")
+              Endpoint.new("tcp://#{ip}:#{addr.ip_port}", ep.bind?)
+            end
+          else
+            ep
+          end
+        end
+      end
+
+
       def initialize(config, in_eps, out_eps, log_port)
         @config   = config
         @in_eps   = in_eps

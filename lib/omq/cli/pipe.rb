@@ -12,7 +12,6 @@ module OMQ
       # @param config [Config] frozen CLI configuration
       def initialize(config)
         @config  = config
-        @fmt     = Formatter.new(config.format, compress: config.compress)
         @fmt_in  = Formatter.new(config.format, compress: config.compress_in || config.compress)
         @fmt_out = Formatter.new(config.format, compress: config.compress_out || config.compress)
       end
@@ -43,29 +42,26 @@ module OMQ
       end
 
 
-      def attach_endpoints(sock, endpoints)
-        SocketSetup.attach_endpoints(sock, endpoints, verbose: config.verbose >= 1)
-      end
-
-
       # ── Sequential ───────────────────────────────────────────────────
 
 
       def run_sequential(task)
         in_eps, out_eps = resolve_endpoints
-        @pull, @push = build_pull_push(
-          { linger: config.linger, recv_timeout: config.timeout },
-          { linger: config.linger, send_timeout: config.timeout },
-          in_eps, out_eps
-        )
+        @pull, @push = build_pull_push(in_eps, out_eps)
         compile_expr
         @sock = @pull  # for eval instance_exec
         start_event_monitors if config.verbose >= 2
-        with_timeout(config.timeout) do
+        wait_body = proc do
           Barrier do |barrier|
             barrier.async(annotation: "wait push peer") { @push.peer_connected.wait }
             barrier.async(annotation: "wait pull peer") { @pull.peer_connected.wait }
           end
+        end
+
+        if config.timeout
+          Fiber.scheduler.with_timeout(config.timeout, &wait_body)
+        else
+          wait_body.call
         end
         setup_sequential_transient(task)
         @sock.instance_exec(&@recv_begin_proc) if @recv_begin_proc
@@ -87,13 +83,13 @@ module OMQ
       end
 
 
-      def build_pull_push(pull_opts, push_opts, in_eps, out_eps)
-        pull = OMQ::PULL.new(**pull_opts)
-        push = OMQ::PUSH.new(**push_opts)
+      def build_pull_push(in_eps, out_eps)
+        pull = OMQ::PULL.new(linger: config.linger, recv_timeout: config.timeout)
+        push = OMQ::PUSH.new(linger: config.linger, send_timeout: config.timeout)
         apply_socket_options(pull)
         apply_socket_options(push)
-        attach_endpoints(pull, in_eps)
-        attach_endpoints(push, out_eps)
+        SocketSetup.attach_endpoints(pull, in_eps, verbose: config.verbose >= 1)
+        SocketSetup.attach_endpoints(push, out_eps, verbose: config.verbose >= 1)
         [pull, push]
       end
 
@@ -117,8 +113,7 @@ module OMQ
           parts = @fmt_in.decompress(parts)
           parts = eval_recv_expr(parts)
           if parts && !parts.empty?
-            out = @fmt_out.compress(parts)
-            @push.send(out)
+            @push.send(@fmt_out.compress(parts))
           end
           i += 1
           break if n && n > 0 && i >= n
@@ -132,9 +127,9 @@ module OMQ
       def run_parallel(task)
         OMQ.freeze_for_ractors!
         in_eps, out_eps = resolve_endpoints
-        in_eps  = preresolve_tcp(in_eps)
-        out_eps = preresolve_tcp(out_eps)
-        log_port, log_thread = start_log_consumer
+        in_eps  = PipeWorker.preresolve_tcp(in_eps)
+        out_eps = PipeWorker.preresolve_tcp(out_eps)
+        log_port, log_thread = PipeWorker.start_log_consumer
         workers = config.parallel.times.map do
           ::Ractor.new(config, in_eps, out_eps, log_port) do |cfg, ins, outs, lport|
             PipeWorker.new(cfg, ins, outs, lport).call
@@ -151,52 +146,7 @@ module OMQ
       end
 
 
-      # ── Shared helpers ────────────────────────────────────────────────
-
-
-      # Starts a Ractor::Port and a consumer thread that drains log
-      # messages to stderr sequentially. Returns [port, thread].
-      #
-      def start_log_consumer
-        port = Ractor::Port.new
-        thread = Thread.new(port) do |p|
-          loop do
-            $stderr.write("#{p.receive}\n")
-          rescue Ractor::ClosedError
-            break
-          end
-        end
-        [port, thread]
-      end
-
-
-      # Resolves TCP hostnames to IP addresses so Ractors don't touch
-      # Resolv::DefaultResolver (which is not shareable).
-      #
-      def preresolve_tcp(endpoints)
-        endpoints.flat_map do |ep|
-          url = ep.url
-          if url.start_with?("tcp://")
-            host, port = OMQ::Transport::TCP.parse_endpoint(url)
-            Addrinfo.getaddrinfo(host, port, nil, :STREAM).map do |addr|
-              ip = addr.ip_address
-              ip = "[#{ip}]" if ip.include?(":")
-              Endpoint.new("tcp://#{ip}:#{addr.ip_port}", ep.bind?)
-            end
-          else
-            ep
-          end
-        end
-      end
-
-
-      def with_timeout(seconds)
-        if seconds
-          Async::Task.current.with_timeout(seconds) { yield }
-        else
-          yield
-        end
-      end
+      # ── Expression eval ──────────────────────────────────────────────
 
 
       def compile_expr
@@ -213,9 +163,7 @@ module OMQ
       end
 
 
-      def log(msg)
-        $stderr.write("#{msg}\n") if config.verbose >= 1
-      end
+      # ── Event monitoring ─────────────────────────────────────────────
 
 
       def start_event_monitors

@@ -107,11 +107,17 @@ module OMQ
 
 
       def wait_for_peer
-        with_timeout(config.timeout) do
+        wait_body = proc do
           @sock.peer_connected.wait
           log "Peer connected"
           wait_for_subscriber
           apply_grace_period
+        end
+
+        if config.timeout
+          Fiber.scheduler.with_timeout(config.timeout, &wait_body)
+        else
+          wait_body.call
         end
       end
 
@@ -130,18 +136,6 @@ module OMQ
         return unless config.binds.any? || config.connects.size > 1
         ri = @sock.options.reconnect_interval
         sleep(ri.is_a?(Range) ? ri.begin : ri)
-      end
-
-
-      # ── Timeout helper ──────────────────────────────────────────────
-
-
-      def with_timeout(seconds)
-        if seconds
-          Async::Task.current.with_timeout(seconds) { yield }
-        else
-          yield
-        end
       end
 
 

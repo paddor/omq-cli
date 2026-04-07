@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.2 — 2026-04-07
+
+### Changed
+
+- **Cleaned up pipe.rb** — removed unused `@fmt` formatters, dead `log` method,
+  and `with_timeout` wrapper. Moved `preresolve_tcp` and `start_log_consumer` to
+  `PipeWorker` class methods.
+- **Guard `with_timeout(nil)`** — `Fiber.scheduler.with_timeout(nil)` fires
+  immediately in Async; peer-wait and pipe sequential mode now skip the timeout
+  wrapper when `config.timeout` is nil.
+
 ## 0.7.1 — 2026-04-07
 
 ### Fixed
