@@ -346,7 +346,7 @@ module OMQ
           o.on("--conflate", "Keep only last message per subscriber (PUB/RADIO)") { opts[:conflate] = true }
 
           o.separator "\nCompression:"
-          o.on("-z", "--compress", "Zstandard compression per frame") { opts[:compress] = true }
+          o.on("-z", "--compress", "Zstandard compression per frame") { require "zstd-ruby"; opts[:compress] = true }
 
           o.separator "\nProcessing (-e = incoming, -E = outgoing):"
           o.on("-e", "--recv-eval EXPR", "Eval Ruby for each incoming message ($F = parts)") { |v| opts[:recv_expr] = v }
