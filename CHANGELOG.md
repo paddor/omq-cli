@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.1 — 2026-04-07
+
+### Fixed
+
+- **`-i` on recv-only sockets** — `pull -i 0.2` rate-limits receiving to
+  one message every 200 ms using `Async::Loop.quantized`. Works on all
+  recv-only socket types (pull, sub, gather, dish).
+- **`--send-eval` with `-i` and piped stdin** — `seq 5 | omq push -E '…' -i 1`
+  ignored stdin and produced no output. `#read_next_or_nil` now reads
+  stdin when available; `#send_tick` distinguishes generator mode (no
+  stdin, eval only) from stdin-exhausted EOF.
+
 ## 0.3.0 — 2026-04-07
 
 ### Fixed

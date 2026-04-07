@@ -207,7 +207,13 @@ module OMQ
 
       def send_tick
         raw = read_next_or_nil
-        if raw.nil? && !@send_eval_proc
+        if raw.nil?
+          if @send_eval_proc && !@stdin_ready
+            # Pure generator mode: no stdin, eval produces output from nothing.
+            parts = eval_send_expr(nil)
+            send_msg(parts) if parts
+            return 1
+          end
           @send_tick_eof = true
           return 0
         end
@@ -220,14 +226,41 @@ module OMQ
       def run_recv_logic
         n = config.count
         i = 0
-        loop do
-          parts = recv_msg
-          break if parts.nil?
-          parts = eval_recv_expr(parts)
-          output(parts)
-          i += 1
-          break if n && n > 0 && i >= n
+        if config.interval
+          run_interval_recv(n)
+        else
+          loop do
+            parts = recv_msg
+            break if parts.nil?
+            parts = eval_recv_expr(parts)
+            output(parts)
+            i += 1
+            break if n && n > 0 && i >= n
+          end
         end
+      end
+
+
+      def run_interval_recv(n)
+        i = recv_tick
+        return if i == 0
+        return if n && n > 0 && i >= n
+        Async::Loop.quantized(interval: config.interval) do
+          i += recv_tick
+          break if @recv_tick_eof || (n && n > 0 && i >= n)
+        end
+      end
+
+
+      def recv_tick
+        parts = recv_msg
+        if parts.nil?
+          @recv_tick_eof = true
+          return 0
+        end
+        parts = eval_recv_expr(parts)
+        output(parts)
+        1
       end
 
 
@@ -328,10 +361,10 @@ module OMQ
       def read_next_or_nil
         if config.data || config.file
           read_next
-        elsif @send_eval_proc
-          nil
+        elsif stdin_ready?
+          read_stdin_input
         else
-          read_next
+          nil
         end
       end
 

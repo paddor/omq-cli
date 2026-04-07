@@ -8,7 +8,7 @@ set -eu
 
 TMPDIR=$(mktemp -d)
 export OMQ_DEV=1
-OMQ="ruby -Ilib exe/omq"
+OMQ="bundle exec ruby -Ilib exe/omq"
 T="-t 1"  # default timeout for all commands
 PASS=0
 FAIL=0
@@ -203,7 +203,7 @@ check "-F reads from file" "from file" "$(cat $TMPDIR/file_out.txt)"
 
 # ── Compression (-z) ───────────────────────────────────────────────
 
-if ruby -e 'require "zstd-ruby"' 2>>"$STDERR_LOG"; then
+if bundle exec ruby -e 'require "zstd-ruby"' 2>>"$STDERR_LOG"; then
   echo "Compression:"
   U=$(ipc)
   PAYLOAD=$(ruby -e "puts 'x' * 200")
@@ -275,6 +275,37 @@ else
   TIMING_OK="no (${ELAPSED_MS}ms)"
 fi
 check "quantized interval keeps cadence" "yes" "$TIMING_OK"
+
+# ── Interval with --send-eval and stdin ────────────────────────────
+
+echo "Interval with send-eval + stdin:"
+U=$(ipc)
+$OMQ pull -b $U -n 3 $T > $TMPDIR/interval_eval_stdin_out.txt 2>>"$STDERR_LOG" &
+seq 3 | $OMQ push -c $U -E '$F << "foo"' -i 0.1 $T 2>>"$STDERR_LOG"
+wait
+check "interval -E with stdin appends to each line" "3" "$(wc -l < $TMPDIR/interval_eval_stdin_out.txt | tr -d ' ')"
+check "interval -E with stdin content" "1	foo" "$(head -1 $TMPDIR/interval_eval_stdin_out.txt)"
+
+# ── Pull with interval (rate-limited recv) ────────────────────────
+
+echo "Pull with interval:"
+U=$(ipc)
+START=$(date +%s%N)
+$OMQ pull -b $U -n 3 -i 0.2 $T > $TMPDIR/pull_interval_out.txt 2>>"$STDERR_LOG" &
+PULL_PID=$!
+sleep 0.1
+seq 5 | $OMQ push -c $U $T 2>>"$STDERR_LOG"
+wait $PULL_PID
+END=$(date +%s%N)
+ELAPSED_MS=$(( (END - START) / 1000000 ))
+check "pull -i receives correct count" "3" "$(wc -l < $TMPDIR/pull_interval_out.txt | tr -d ' ')"
+# 3 messages at 0.2s interval: ~0.6s total, allow 300–1500ms
+if [ "$ELAPSED_MS" -ge 300 ] && [ "$ELAPSED_MS" -le 1500 ]; then
+  PULL_TIMING="yes"
+else
+  PULL_TIMING="no (${ELAPSED_MS}ms)"
+fi
+check "pull -i rate-limits recv cadence" "yes" "$PULL_TIMING"
 
 # ── DEALER with --identity ──────────────────────────────────────────
 
