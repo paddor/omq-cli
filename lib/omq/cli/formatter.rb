@@ -95,6 +95,8 @@ module OMQ
       # @return [Array<String>] decompressed frames
       def decompress(parts)
         @compress ? parts.map { |p| Zstd.decompress(p) } : parts
+      rescue
+        abort "omq: decompression failed (did the sender use --compress?)"
       end
     end
   end
