@@ -394,14 +394,14 @@ describe "OMQ::CLI::CliParser.parse" do
     assert_empty opts[:out_endpoints]
   end
 
-  it "parses --curve-crypto" do
-    opts = OMQ::CLI::CliParser.parse(["req", "-c", "tcp://x:1", "--curve-crypto", "nuckle"])
-    assert_equal "nuckle", opts[:curve_crypto]
+  it "parses --crypto" do
+    opts = OMQ::CLI::CliParser.parse(["req", "-c", "tcp://x:1", "--crypto", "nuckle"])
+    assert_equal "nuckle", opts[:crypto]
   end
 
-  it "defaults curve_crypto to nil" do
+  it "defaults crypto to nil" do
     opts = OMQ::CLI::CliParser.parse(["req", "-c", "tcp://x:1"])
-    assert_nil opts[:curve_crypto]
+    assert_nil opts[:crypto]
   end
 
   it "parses -r as a deferred script path" do

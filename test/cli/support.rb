@@ -5,19 +5,8 @@ require_relative "../../lib/omq/cli"
 require "json"
 require "stringio"
 
-HAS_MSGPACK = begin
-  require "msgpack"
-  true
-rescue LoadError
-  false
-end
-
-HAS_ZSTD = begin
-  require "zstd-ruby"
-  true
-rescue LoadError
-  false
-end
+require "msgpack"
+require "zstd-ruby"
 
 # Suppress stderr/stdout from abort/puts during validation tests.
 def quietly
@@ -72,9 +61,7 @@ def make_config(type_name:, **overrides)
     recv_maxsz:      nil,
     curve_server:    false,
     curve_server_key: nil,
-    curve_crypto:    nil,
-    has_msgpack:     false,
-    has_zstd:        false,
+    crypto:    nil,
     stdin_is_tty:    true,
   }
   OMQ::CLI::Config.new(**defaults.merge(overrides))

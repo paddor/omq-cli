@@ -176,38 +176,36 @@ describe OMQ::CLI::Formatter do
 
   # ── MessagePack format ──────────────────────────────────────────
 
-  if HAS_MSGPACK
-    describe "msgpack" do
-      before { @fmt = OMQ::CLI::Formatter.new(:msgpack) }
+  describe "msgpack" do
+    before { @fmt = OMQ::CLI::Formatter.new(:msgpack) }
 
-      it "encodes as MessagePack" do
-        encoded = @fmt.encode(["hello"])
-        assert_equal ["hello"], MessagePack.unpack(encoded)
-      end
+    it "encodes as MessagePack" do
+      encoded = @fmt.encode(["hello"])
+      assert_equal ["hello"], MessagePack.unpack(encoded)
+    end
 
-      it "encodes multipart" do
-        encoded = @fmt.encode(["a", "b", "c"])
-        assert_equal ["a", "b", "c"], MessagePack.unpack(encoded)
-      end
+    it "encodes multipart" do
+      encoded = @fmt.encode(["a", "b", "c"])
+      assert_equal ["a", "b", "c"], MessagePack.unpack(encoded)
+    end
 
-      it "decodes from IO stream" do
-        data   = MessagePack.pack(["hello", "world"])
-        io     = StringIO.new(data)
-        result = @fmt.decode_msgpack(io)
-        assert_equal ["hello", "world"], result
-      end
+    it "decodes from IO stream" do
+      data   = MessagePack.pack(["hello", "world"])
+      io     = StringIO.new(data)
+      result = @fmt.decode_msgpack(io)
+      assert_equal ["hello", "world"], result
+    end
 
-      it "decodes multiple messages from stream" do
-        data = MessagePack.pack(["msg1"]) + MessagePack.pack(["msg2"])
-        io   = StringIO.new(data)
-        assert_equal ["msg1"], @fmt.decode_msgpack(io)
-        assert_equal ["msg2"], @fmt.decode_msgpack(io)
-      end
+    it "decodes multiple messages from stream" do
+      data = MessagePack.pack(["msg1"]) + MessagePack.pack(["msg2"])
+      io   = StringIO.new(data)
+      assert_equal ["msg1"], @fmt.decode_msgpack(io)
+      assert_equal ["msg2"], @fmt.decode_msgpack(io)
+    end
 
-      it "returns nil at EOF" do
-        io = StringIO.new("")
-        assert_nil @fmt.decode_msgpack(io)
-      end
+    it "returns nil at EOF" do
+      io = StringIO.new("")
+      assert_nil @fmt.decode_msgpack(io)
     end
   end
 
@@ -221,22 +219,20 @@ describe OMQ::CLI::Formatter do
       assert_same parts, fmt.decompress(parts)
     end
 
-    if HAS_ZSTD
-      it "round-trips with compression enabled" do
-        fmt        = OMQ::CLI::Formatter.new(:ascii, compress: true)
-        parts      = ["hello", "world"]
-        compressed = fmt.compress(parts)
-        refute_equal parts, compressed
-        assert_equal parts, fmt.decompress(compressed)
-      end
+    it "round-trips with compression enabled" do
+      fmt        = OMQ::CLI::Formatter.new(:ascii, compress: true)
+      parts      = ["hello", "world"]
+      compressed = fmt.compress(parts)
+      refute_equal parts, compressed
+      assert_equal parts, fmt.decompress(compressed)
+    end
 
-      it "compresses large data" do
-        fmt   = OMQ::CLI::Formatter.new(:ascii, compress: true)
-        big   = ["x" * 10_000]
-        small = fmt.compress(big)
-        assert_operator small.first.bytesize, :<, big.first.bytesize
-        assert_equal big, fmt.decompress(small)
-      end
+    it "compresses large data" do
+      fmt   = OMQ::CLI::Formatter.new(:ascii, compress: true)
+      big   = ["x" * 10_000]
+      small = fmt.compress(big)
+      assert_operator small.first.bytesize, :<, big.first.bytesize
+      assert_equal big, fmt.decompress(small)
     end
   end
 end

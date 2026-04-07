@@ -4,26 +4,17 @@ require_relative "support"
 require "nuckle"
 require "protocol/zmtp/mechanism/curve"
 
-HAS_RBNACL = begin
-  require "rbnacl"
-  true
-rescue LoadError
-  false
-end
-
 describe "load_curve_crypto" do
-  if HAS_RBNACL
-    it "loads rbnacl when explicitly requested" do
-      assert_equal "RbNaCl", OMQ::CLI.load_curve_crypto("rbnacl").name
-    end
+  it "loads rbnacl when explicitly requested" do
+    assert_equal "RbNaCl", OMQ::CLI.load_curve_crypto("rbnacl").name
+  end
 
-    it "is case-insensitive for rbnacl" do
-      assert_equal "RbNaCl", OMQ::CLI.load_curve_crypto("RbNaCl").name
-    end
+  it "is case-insensitive for rbnacl" do
+    assert_equal "RbNaCl", OMQ::CLI.load_curve_crypto("RbNaCl").name
+  end
 
-    it "defaults to rbnacl when name is nil and rbnacl is available" do
-      assert_equal "RbNaCl", OMQ::CLI.load_curve_crypto(nil).name
-    end
+  it "defaults to rbnacl when name is nil" do
+    assert_equal "RbNaCl", OMQ::CLI.load_curve_crypto(nil).name
   end
 
   it "loads nuckle when explicitly requested" do
@@ -41,14 +32,14 @@ end
 
 
 describe "setup_curve" do
-  def make_runner(curve_server: false, curve_server_key: nil, curve_crypto: nil)
+  def make_runner(curve_server: false, curve_server_key: nil, crypto: nil)
     config = make_config(
       type_name:        "rep",
       binds:            ["tcp://localhost:5555"],
       endpoints:        [OMQ::CLI::Endpoint.new("tcp://localhost:5555", true)],
       curve_server:     curve_server,
       curve_server_key: curve_server_key,
-      curve_crypto:     curve_crypto,
+      crypto:     crypto,
     )
     runner = OMQ::CLI::BaseRunner.allocate
     runner.instance_variable_set(:@config, config)
@@ -56,59 +47,57 @@ describe "setup_curve" do
     runner
   end
 
-  it "sets up CURVE server with --curve-crypto nuckle" do
-    runner = make_runner(curve_server: true, curve_crypto: "nuckle")
+  it "sets up CURVE server with --crypto nuckle" do
+    runner = make_runner(curve_server: true, crypto: "nuckle")
     quietly { runner.send(:setup_curve) }
     assert_kind_of Protocol::ZMTP::Mechanism::Curve, runner.sock.mechanism
     runner.sock.close rescue nil
   end
 
-  if HAS_RBNACL
-    it "sets up CURVE server with --curve-crypto rbnacl" do
-      runner = make_runner(curve_server: true, curve_crypto: "rbnacl")
-      quietly { runner.send(:setup_curve) }
-      assert_kind_of Protocol::ZMTP::Mechanism::Curve, runner.sock.mechanism
-      runner.sock.close rescue nil
-    end
+  it "sets up CURVE server with --crypto rbnacl" do
+    runner = make_runner(curve_server: true, crypto: "rbnacl")
+    quietly { runner.send(:setup_curve) }
+    assert_kind_of Protocol::ZMTP::Mechanism::Curve, runner.sock.mechanism
+    runner.sock.close rescue nil
+  end
 
-    it "sets up CURVE server with default (rbnacl auto-detected)" do
-      runner = make_runner(curve_server: true)
-      quietly { runner.send(:setup_curve) }
-      assert_kind_of Protocol::ZMTP::Mechanism::Curve, runner.sock.mechanism
-      runner.sock.close rescue nil
-    end
+  it "sets up CURVE server with default (rbnacl)" do
+    runner = make_runner(curve_server: true)
+    quietly { runner.send(:setup_curve) }
+    assert_kind_of Protocol::ZMTP::Mechanism::Curve, runner.sock.mechanism
+    runner.sock.close rescue nil
   end
 
   it "sets up CURVE client with server key" do
     key        = Nuckle::PrivateKey.generate
     server_z85 = Protocol::ZMTP::Z85.encode(key.public_key.to_s)
 
-    runner = make_runner(curve_server_key: server_z85, curve_crypto: "nuckle")
+    runner = make_runner(curve_server_key: server_z85, crypto: "nuckle")
     runner.send(:setup_curve)
     assert_kind_of Protocol::ZMTP::Mechanism::Curve, runner.sock.mechanism
     runner.sock.close rescue nil
   end
 
-  it "picks up OMQ_CURVE_CRYPTO env var" do
-    old = ENV["OMQ_CURVE_CRYPTO"]
-    ENV["OMQ_CURVE_CRYPTO"] = "nuckle"
+  it "picks up OMQ_CRYPTO env var" do
+    old = ENV["OMQ_CRYPTO"]
+    ENV["OMQ_CRYPTO"] = "nuckle"
     runner = make_runner(curve_server: true)
     quietly { runner.send(:setup_curve) }
     assert_kind_of Protocol::ZMTP::Mechanism::Curve, runner.sock.mechanism
     runner.sock.close rescue nil
   ensure
-    if old then ENV["OMQ_CURVE_CRYPTO"] = old else ENV.delete("OMQ_CURVE_CRYPTO") end
+    if old then ENV["OMQ_CRYPTO"] = old else ENV.delete("OMQ_CRYPTO") end
   end
 
   it "flag overrides env var" do
-    old = ENV["OMQ_CURVE_CRYPTO"]
-    ENV["OMQ_CURVE_CRYPTO"] = "nuckle"
-    runner = make_runner(curve_server: true, curve_crypto: "nuckle")
+    old = ENV["OMQ_CRYPTO"]
+    ENV["OMQ_CRYPTO"] = "nuckle"
+    runner = make_runner(curve_server: true, crypto: "nuckle")
     quietly { runner.send(:setup_curve) }
     assert_kind_of Protocol::ZMTP::Mechanism::Curve, runner.sock.mechanism
     runner.sock.close rescue nil
   ensure
-    if old then ENV["OMQ_CURVE_CRYPTO"] = old else ENV.delete("OMQ_CURVE_CRYPTO") end
+    if old then ENV["OMQ_CRYPTO"] = old else ENV.delete("OMQ_CRYPTO") end
   end
 
   it "picks up OMQ_SERVER_PUBLIC and OMQ_SERVER_SECRET env vars" do
@@ -118,7 +107,7 @@ describe "setup_curve" do
     ENV["OMQ_SERVER_PUBLIC"] = Protocol::ZMTP::Z85.encode(key.public_key.to_s)
     ENV["OMQ_SERVER_SECRET"] = Protocol::ZMTP::Z85.encode(key.to_s)
 
-    runner = make_runner(curve_crypto: "nuckle")
+    runner = make_runner(crypto: "nuckle")
     quietly { runner.send(:setup_curve) }
     assert_kind_of Protocol::ZMTP::Mechanism::Curve, runner.sock.mechanism
     runner.sock.close rescue nil
@@ -138,13 +127,13 @@ end
 
 describe "omq keygen" do
   it "generates Z85 keypair to stdout" do
-    out = capture_io { OMQ::CLI.run_keygen(["--curve-crypto", "nuckle"]) }.first
+    out = capture_io { OMQ::CLI.run_keygen(["--crypto", "nuckle"]) }.first
     assert_match(/^OMQ_SERVER_PUBLIC='/, out)
     assert_match(/^OMQ_SERVER_SECRET='/, out)
   end
 
   it "generates valid 40-char Z85 keys that decode to 32 bytes" do
-    out = capture_io { OMQ::CLI.run_keygen(["--curve-crypto", "nuckle"]) }.first
+    out = capture_io { OMQ::CLI.run_keygen(["--crypto", "nuckle"]) }.first
     pub = out[/OMQ_SERVER_PUBLIC='([^']+)'/, 1]
     sec = out[/OMQ_SERVER_SECRET='([^']+)'/, 1]
     assert_equal 40, pub.length
@@ -153,20 +142,18 @@ describe "omq keygen" do
     assert_equal 32, Protocol::ZMTP::Z85.decode(sec).bytesize
   end
 
-  if HAS_RBNACL
-    it "respects --curve-crypto rbnacl" do
-      out = capture_io { OMQ::CLI.run_keygen(["--curve-crypto", "rbnacl"]) }.first
-      assert_includes out, "OMQ_SERVER_PUBLIC="
-    end
+  it "respects --crypto rbnacl" do
+    out = capture_io { OMQ::CLI.run_keygen(["--crypto", "rbnacl"]) }.first
+    assert_includes out, "OMQ_SERVER_PUBLIC="
   end
 
-  it "respects OMQ_CURVE_CRYPTO env var" do
-    old = ENV["OMQ_CURVE_CRYPTO"]
-    ENV["OMQ_CURVE_CRYPTO"] = "nuckle"
+  it "respects OMQ_CRYPTO env var" do
+    old = ENV["OMQ_CRYPTO"]
+    ENV["OMQ_CRYPTO"] = "nuckle"
     out = capture_io { OMQ::CLI.run_keygen([]) }.first
     assert_includes out, "OMQ_SERVER_PUBLIC="
   ensure
-    if old then ENV["OMQ_CURVE_CRYPTO"] = old else ENV.delete("OMQ_CURVE_CRYPTO") end
+    if old then ENV["OMQ_CRYPTO"] = old else ENV.delete("OMQ_CRYPTO") end
   end
 
   it "prints help with --help" do

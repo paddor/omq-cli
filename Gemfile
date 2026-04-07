@@ -16,9 +16,3 @@ gem "omq-rfc-channel",      path: ENV["OMQ_DEV"] ? "../omq-rfc-channel" : nil
 gem "omq-rfc-p2p",          path: ENV["OMQ_DEV"] ? "../omq-rfc-p2p" : nil
 gem "protocol-zmtp",        path: ENV["OMQ_DEV"] ? "../protocol-zmtp" : nil
 gem "nuckle",               path: ENV["OMQ_DEV"] ? "../nuckle" : nil
-
-if ENV["OMQ_DEV"]
-  gem "rbnacl", "~> 7.0"
-  gem "zstd-ruby"
-  gem "async-debug"
-end

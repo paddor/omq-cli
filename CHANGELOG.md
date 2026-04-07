@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.0 — 2026-04-07
+
+### Changed
+
+- **rbnacl, zstd-ruby, msgpack, and async-debug are now fixed dependencies** —
+  no more runtime detection or conditional test guards.
+- **`--curve-crypto` renamed to `--crypto`** — applies to CURVE and future
+  mechanisms (e.g. BLAKE3ZMQ). Env var renamed from `OMQ_CURVE_CRYPTO` to
+  `OMQ_CRYPTO`.
+- **CURVE requires system libsodium** — rbnacl is bundled but needs libsodium
+  installed (`apt install libsodium-dev` / `brew install libsodium`). nuckle
+  (pure Ruby) is available via `--crypto nuckle` but marked as DANGEROUS.
+
+### Removed
+
+- **`has_zstd` / `has_msgpack` config fields** — no longer needed since both
+  gems are fixed dependencies.
+
 ## 0.4.0 — 2026-04-07
 
 ### Added

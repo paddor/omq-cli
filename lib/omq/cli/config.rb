@@ -55,9 +55,7 @@ module OMQ
       :recv_maxsz,
       :curve_server,
       :curve_server_key,
-      :curve_crypto,
-      :has_msgpack,
-      :has_zstd,
+      :crypto,
       :stdin_is_tty,
     ) do
       # @return [Boolean] true if this socket type only sends

@@ -122,12 +122,12 @@ module OMQ
       verbose     = false
       while (arg = argv.shift)
         case arg
-        when "--curve-crypto"
+        when "--crypto"
           crypto_name = argv.shift
         when "-v", "--verbose"
           verbose = true
         when "-h", "--help"
-          puts "Usage: omq keygen [--curve-crypto rbnacl|nuckle] [-v]\n\n" \
+          puts "Usage: omq keygen [--crypto rbnacl|nuckle] [-v]\n\n" \
                "Generates a CURVE keypair for persistent server identity.\n" \
                "Output: Z85-encoded env vars for use with --curve-server."
           exit
@@ -135,7 +135,7 @@ module OMQ
           abort "omq keygen: unknown option: #{arg}"
         end
       end
-      crypto_name ||= ENV["OMQ_CURVE_CRYPTO"]
+      crypto_name ||= ENV["OMQ_CRYPTO"]
 
       crypto = load_curve_crypto(crypto_name, verbose: verbose)
       require "protocol/zmtp/mechanism/curve"
@@ -166,11 +166,11 @@ module OMQ
           require "rbnacl"
           RbNaCl
         rescue LoadError
-          abort "CURVE requires a crypto backend. Install rbnacl (recommended):\n" \
-                "  gem install rbnacl    # requires system libsodium\n" \
-                "Or use pure Ruby (not audited):\n" \
-                "  --curve-crypto nuckle\n" \
-                "  # or: OMQ_CURVE_CRYPTO=nuckle"
+          abort "CURVE requires libsodium. Install it:\n" \
+                "  apt install libsodium-dev    # Debian/Ubuntu\n" \
+                "  brew install libsodium       # macOS\n" \
+                "Or use nuckle (pure Ruby, DANGEROUS — not audited):\n" \
+                "  --crypto nuckle"
         end
       else
         abort "Unknown CURVE crypto backend: #{name}. Use 'rbnacl' or 'nuckle'."
@@ -265,18 +265,6 @@ module OMQ
       opts = CliParser.parse(argv)
       CliParser.validate!(opts)
 
-      opts[:has_msgpack] = begin
-        require "msgpack"
-        true
-      rescue LoadError
-        false
-      end
-      opts[:has_zstd] = begin
-        require "zstd-ruby"
-        true
-      rescue LoadError
-        false
-      end
       opts[:stdin_is_tty] = $stdin.tty?
 
       Ractor.make_shareable(Config.new(**opts))

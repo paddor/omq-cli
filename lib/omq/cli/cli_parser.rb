@@ -230,7 +230,7 @@ module OMQ
         recv_maxsz:       nil,
         curve_server:     false,
         curve_server_key: nil,
-        curve_crypto:     nil,
+        crypto:     nil,
       }.freeze
 
 
@@ -248,12 +248,9 @@ module OMQ
       end
 
 
-      # Validates that required gems are available.
+      # Validates option combinations that depend on socket type.
       #
       def self.validate_gems!(config)
-        abort "--msgpack requires the msgpack gem"    if config.format == :msgpack && !config.has_msgpack
-        abort "--compress requires the zstd-ruby gem" if config.compress && !config.has_zstd
-
         if config.recv_only? && (config.data || config.file)
           abort "--data/--file not valid for #{config.type_name} (receive-only)"
         end
@@ -363,12 +360,13 @@ module OMQ
             opts[:parallel] = v || Etc.nprocessors
           }
 
-          o.separator "\nCURVE encryption (requires rbnacl or nuckle gem):"
+          o.separator "\nCURVE encryption (requires system libsodium):"
           o.on("--curve-server",         "Enable CURVE as server (generates keypair)") { opts[:curve_server] = true }
           o.on("--curve-server-key KEY", "Enable CURVE as client (server's Z85 public key)") { |v| opts[:curve_server_key] = v }
-          o.on("--curve-crypto BACKEND", "Crypto backend: rbnacl (default if installed) or nuckle") { |v| opts[:curve_crypto] = v }
+          o.on("--crypto BACKEND", "Crypto backend: rbnacl (default) or nuckle (pure Ruby, DANGEROUS)") { |v| opts[:crypto] = v }
+          o.separator "  Install libsodium: apt install libsodium-dev / brew install libsodium"
           o.separator "  Env vars: OMQ_SERVER_KEY (client), OMQ_SERVER_PUBLIC + OMQ_SERVER_SECRET (server)"
-          o.separator "            OMQ_CURVE_CRYPTO (backend: rbnacl or nuckle)"
+          o.separator "            OMQ_CRYPTO (backend: rbnacl or nuckle)"
 
           o.separator "\nOther:"
           o.on("-v", "--verbose",   "Verbosity: -v endpoints, -vv events, -vvv messages") { opts[:verbose] += 1 }

@@ -78,7 +78,7 @@ module OMQ
 
         return unless server_key_z85 || server_mode
 
-        crypto = CLI.load_curve_crypto(config.curve_crypto || ENV["OMQ_CURVE_CRYPTO"], verbose: config.verbose >= 1)
+        crypto = CLI.load_curve_crypto(config.crypto || ENV["OMQ_CRYPTO"], verbose: config.verbose >= 1)
         require "protocol/zmtp/mechanism/curve"
 
         if server_key_z85

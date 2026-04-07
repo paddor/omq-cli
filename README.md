@@ -352,22 +352,25 @@ omq keygen
 # OMQ_SERVER_PUBLIC='...'
 # OMQ_SERVER_SECRET='...'
 
-omq keygen --curve-crypto nuckle   # pure Ruby backend
+omq keygen --crypto nuckle   # pure Ruby backend (DANGEROUS — not audited)
 ```
 
 Export the vars, then use `--curve-server` (server) or `--curve-server-key` (client).
 
 ## CURVE encryption
 
-End-to-end encryption using CurveZMQ. Requires a crypto backend:
-- **rbnacl** (recommended) — wraps libsodium, fast and audited. `gem install rbnacl`
-- **nuckle** — pure Ruby, no system dependencies, not audited. `gem install nuckle`
-
-By default, `rbnacl` is used if installed. To use `nuckle` explicitly:
+End-to-end encryption using CurveZMQ. Requires system libsodium:
 
 ```sh
-omq rep -b tcp://:5555 --echo --curve-server --curve-crypto nuckle
-# or: OMQ_CURVE_CRYPTO=nuckle omq rep -b tcp://:5555 --echo --curve-server
+apt install libsodium-dev    # Debian/Ubuntu
+brew install libsodium       # macOS
+```
+
+To use nuckle (pure Ruby, DANGEROUS — not audited) instead:
+
+```sh
+omq rep -b tcp://:5555 --echo --curve-server --crypto nuckle
+# or: OMQ_CRYPTO=nuckle omq rep -b tcp://:5555 --echo --curve-server
 ```
 
 ```sh
