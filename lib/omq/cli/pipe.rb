@@ -134,7 +134,7 @@ module OMQ
         in_eps, out_eps = resolve_endpoints
         in_eps  = preresolve_tcp(in_eps)
         out_eps = preresolve_tcp(out_eps)
-        log_port, log_thread = start_log_consumer if config.verbose >= 2
+        log_port, log_thread = start_log_consumer
         workers = spawn_workers(config, in_eps, out_eps, log_port)
         workers.each do |w|
           w.join
@@ -142,14 +142,12 @@ module OMQ
           $stderr.write("omq: Ractor error: #{e.cause&.message || e.message}\n")
         end
       ensure
-        if log_port
-          log_port.close
-          log_thread.join
-        end
+        log_port.close
+        log_thread.join
       end
 
 
-      def spawn_workers(config, in_eps, out_eps, log_port = nil)
+      def spawn_workers(config, in_eps, out_eps, log_port)
         config.parallel.times.map do
           ::Ractor.new(config, in_eps, out_eps, log_port) do |cfg, ins, outs, lport|
             Async do
@@ -170,10 +168,15 @@ module OMQ
               push.sndbuf            = cfg.sndbuf if cfg.sndbuf
               push.rcvbuf            = cfg.rcvbuf if cfg.rcvbuf
 
-              OMQ::CLI::SocketSetup.attach_endpoints(pull, ins, verbose: cfg.verbose >= 1)
-              OMQ::CLI::SocketSetup.attach_endpoints(push, outs, verbose: cfg.verbose >= 1)
+              OMQ::CLI::SocketSetup.attach_endpoints(pull, ins, verbose: false)
+              OMQ::CLI::SocketSetup.attach_endpoints(push, outs, verbose: false)
 
-              if lport
+              if cfg.verbose >= 1
+                ins.each { |ep| lport.send(ep.bind? ? "Bound to #{ep.url}" : "Connecting to #{ep.url}") }
+                outs.each { |ep| lport.send(ep.bind? ? "Bound to #{ep.url}" : "Connecting to #{ep.url}") }
+              end
+
+              if cfg.verbose >= 2
                 trace = cfg.verbose >= 3
                 [pull, push].each do |sock|
                   sock.monitor(verbose: trace) do |event|
