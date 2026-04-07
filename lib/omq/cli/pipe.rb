@@ -112,11 +112,11 @@ module OMQ
           parts = @pull.receive
           break if parts.nil?
           parts = @fmt.decompress(parts)
-          $stderr.puts "omq: << #{msg_preview(parts)}" if trace
+          $stderr.write("omq: << #{msg_preview(parts)}\n") if trace
           parts = eval_recv_expr(parts)
           if parts && !parts.empty?
             out = @fmt.compress(parts)
-            $stderr.puts "omq: >> #{msg_preview(out)}" if trace
+            $stderr.write("omq: >> #{msg_preview(out)}\n") if trace
             @push.send(out)
           end
           i += 1
@@ -258,7 +258,7 @@ module OMQ
         workers.each do |w|
           w.value
         rescue Ractor::RemoteError => e
-          $stderr.puts "omq: Ractor error: #{e.cause&.message || e.message}"
+          $stderr.write("omq: Ractor error: #{e.cause&.message || e.message}\n")
         end
       end
 
@@ -290,7 +290,7 @@ module OMQ
 
 
       def log(msg)
-        $stderr.puts(msg) if config.verbose >= 1
+        $stderr.write("#{msg}\n") if config.verbose >= 1
       end
 
 
@@ -299,7 +299,7 @@ module OMQ
           sock.monitor do |event|
             ep = event.endpoint ? " #{event.endpoint}" : ""
             detail = event.detail ? " #{event.detail}" : ""
-            $stderr.puts "omq: #{event.type}#{ep}#{detail}"
+            $stderr.write("omq: #{event.type}#{ep}#{detail}\n")
           end
         end
       end

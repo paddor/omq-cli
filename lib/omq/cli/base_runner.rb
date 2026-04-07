@@ -427,7 +427,7 @@ module OMQ
 
 
       def log(msg)
-        $stderr.puts(msg) if config.verbose >= 1
+        $stderr.write("#{msg}\n") if config.verbose >= 1
       end
 
 
@@ -436,7 +436,7 @@ module OMQ
         @sock.monitor do |event|
           ep = event.endpoint ? " #{event.endpoint}" : ""
           detail = event.detail ? " #{event.detail}" : ""
-          $stderr.puts "omq: #{event.type}#{ep}#{detail}"
+          $stderr.write("omq: #{event.type}#{ep}#{detail}\n")
         end
       end
 
@@ -444,13 +444,13 @@ module OMQ
       # -vvv: log first 10 bytes of each message part
       def trace_send(parts)
         return unless config.verbose >= 3
-        $stderr.puts "omq: >> #{msg_preview(parts)}"
+        $stderr.write("omq: >> #{msg_preview(parts)}\n")
       end
 
 
       def trace_recv(parts)
         return unless config.verbose >= 3
-        $stderr.puts "omq: << #{msg_preview(parts)}"
+        $stderr.write("omq: << #{msg_preview(parts)}\n")
       end
 
 
