@@ -47,11 +47,15 @@ check() {
   > "$STDERR_LOG"  # reset for next test
 }
 
-# Unique IPC name per test (abstract namespace, no file cleanup)
-S=0
+# Unique IPC name per test (abstract namespace, no file cleanup).
+# Uses a file to persist the counter across $(ipc) subshells.
+IPC_CTR="$TMPDIR/ipc_ctr"
+echo 0 > "$IPC_CTR"
 ipc() {
-	S=$((S + 1))
-	echo "ipc://@omq_test_${$}_${S}"
+	N=$(cat "$IPC_CTR")
+	N=$((N + 1))
+	echo "$N" > "$IPC_CTR"
+	echo "ipc://@omq_test_${$}_${N}"
 }
 
 echo "=== omq system tests ==="
@@ -555,6 +559,36 @@ $OMQ pull -b $U --recv-hwm 10 -n 1 $T > $TMPDIR/hwm_out.txt 2>>"$STDERR_LOG" &
 echo 'hwm test' | $OMQ push -c $U --send-hwm 10 $T 2>>"$STDERR_LOG"
 wait
 check "--send-hwm and --recv-hwm accepted" "hwm test" "$(cat $TMPDIR/hwm_out.txt)"
+
+# ── Pipe send-hwm: consumer 2 receives after consumer 1 exits ──────
+
+echo "Pipe send-hwm reconnect:"
+PIPE_SRC="ipc://@omq_pipe_src_$$"
+PIPE_DST="ipc://@omq_pipe_dst_$$"
+# Use large messages (64KB each) so the kernel buffer fills up and
+# creates real backpressure.  With --send-hwm=1, the pipe retains
+# un-forwarded messages for a reconnecting consumer.
+$OMQ pipe -c $PIPE_SRC -c $PIPE_DST --send-hwm 1 --reconnect-ivl 0.1 -t 10 2>>"$STDERR_LOG" &
+PIPE_PID=$!
+sleep 0.5
+$OMQ pull -b $PIPE_DST -n 2 -t 5 > $TMPDIR/pipe_c1.txt 2>>"$STDERR_LOG" &
+C1_PID=$!
+sleep 0.5
+ruby -e '50.times { |i| puts "#{i}#{"X" * 65536}" }' \
+  | $OMQ push -b $PIPE_SRC -t 5 2>>"$STDERR_LOG" &
+SRC_PID=$!
+wait $C1_PID 2>/dev/null || true
+sleep 1.5
+$OMQ pull -b $PIPE_DST -n 3 -t 5 > $TMPDIR/pipe_c2.txt 2>>"$STDERR_LOG" &
+C2_PID=$!
+if wait $C2_PID 2>/dev/null; then
+  C2_LINES=$(wc -l < $TMPDIR/pipe_c2.txt | tr -d ' ')
+  check "consumer 2 receives after consumer 1 exits" "3" "$C2_LINES"
+else
+  fail "consumer 2 receives after consumer 1 exits" "3 messages" "timeout"
+fi
+kill $PIPE_PID $SRC_PID 2>/dev/null || true
+wait 2>/dev/null || true
 
 # ── Summary ─────────────────────────────────────────────────────────
 
