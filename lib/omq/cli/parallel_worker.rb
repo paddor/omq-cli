@@ -41,7 +41,7 @@ module OMQ
 
 
       def setup_socket
-        @sock = OMQ.const_get(@socket_sym).new
+        @sock = @config.ffi ? OMQ.const_get(@socket_sym).new(backend: :ffi) : OMQ.const_get(@socket_sym).new
         OMQ::CLI::SocketSetup.apply_options(@sock, @config)
         @sock.identity = @config.identity if @config.identity
         OMQ::CLI::SocketSetup.attach_endpoints(@sock, @endpoints, verbose: false)

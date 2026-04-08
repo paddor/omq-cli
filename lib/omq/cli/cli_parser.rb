@@ -233,6 +233,7 @@ module OMQ
         curve_server:     false,
         curve_server_key: nil,
         crypto:     nil,
+        ffi:              false,
       }.freeze
 
 
@@ -383,6 +384,14 @@ module OMQ
           o.on("-v", "--verbose",   "Verbosity: -v endpoints, -vv events, -vvv messages") { opts[:verbose] += 1 }
           o.on("-q", "--quiet",     "Suppress message output")           { opts[:quiet] = true }
           o.on(      "--transient", "Exit when all peers disconnect")    { opts[:transient] = true }
+          o.on(      "--ffi",       "Use libzmq FFI backend (requires omq-ffi gem + system libzmq 4.x)") do
+            begin
+              require "omq/ffi"
+            rescue LoadError => e
+              abort "omq: --ffi requires the omq-ffi gem and system libzmq 4.x (#{e.message})"
+            end
+            opts[:ffi] = true
+          end
           o.on("-V", "--version") {
             if ENV["OMQ_DEV"]
               require_relative "../../../../omq/lib/omq/version"
@@ -482,6 +491,7 @@ module OMQ
         abort "--conflate is only valid for PUB/RADIO"          if opts[:conflate] && !%w[pub radio].include?(type_name)
         abort "--recv-eval is not valid for send-only sockets (use --send-eval / -E)" if opts[:recv_expr] && SEND_ONLY.include?(type_name)
         abort "--send-eval is not valid for recv-only sockets (use --recv-eval / -e)" if opts[:send_expr] && RECV_ONLY.include?(type_name)
+        abort "--send-eval is not valid for REP (the reply is the result of --recv-eval / -e)" if opts[:send_expr] && type_name == "rep"
         abort "--send-eval and --target are mutually exclusive"  if opts[:send_expr] && opts[:target]
 
         if opts[:parallel]

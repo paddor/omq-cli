@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **`--ffi` flag** — opt-in libzmq backend for any socket runner. Builds
+  sockets with `backend: :ffi`, so the CLI can drive native libzmq instead
+  of the pure-Ruby engine. Requires the optional `omq-ffi` gem and a
+  system libzmq 4.x; missing dependencies abort with a clear error.
+  Propagated through all socket construction sites: `BaseRunner`,
+  `PipeRunner`, `PipeWorker`, and `ParallelWorker`.
+
+### Fixed
+
+- **`--send-eval` / `-E` on REP** — now rejected at validation time. REP
+  derives its reply from `--recv-eval` / `-e`, so `-E` was silently
+  ignored and the runner fell through to reading stdin, hanging the
+  request-reply cycle.
+
 ## 0.8.2 — 2026-04-08
 
 ### Fixed

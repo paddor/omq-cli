@@ -64,6 +64,7 @@ def make_config(type_name:, **overrides)
     curve_server:    false,
     curve_server_key: nil,
     crypto:    nil,
+    ffi:             false,
     stdin_is_tty:    true,
   }
   OMQ::CLI::Config.new(**defaults.merge(overrides))

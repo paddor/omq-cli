@@ -110,15 +110,17 @@ module OMQ
       def self.preview(parts)
         total = parts.sum(&:bytesize)
         shown = parts.first(3).map { |p| preview_frame(p) }
-        tail = parts.size > 3 ? "|...(#{parts.size} parts)" : ""
+        tail  = parts.size > 3 ? "|...(#{parts.size} parts)" : ""
+
         "(#{total}B) #{shown.join("|")}#{tail}"
       end
 
 
       def self.preview_frame(part)
-        bytes = part.b
-        sample = bytes[0, 12]
+        bytes     = part.b
+        sample    = bytes[0, 12]
         printable = sample.count("\x20-\x7e")
+
         if printable < sample.bytesize / 2
           "[#{bytes.bytesize}B]"
         elsif bytes.bytesize > 12

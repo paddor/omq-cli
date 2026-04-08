@@ -80,8 +80,9 @@ module OMQ
 
 
       def build_pull_push(in_eps, out_eps)
-        pull = OMQ::PULL.new
-        push = OMQ::PUSH.new
+        kwargs = config.ffi ? { backend: :ffi } : {}
+        pull = OMQ::PULL.new(**kwargs)
+        push = OMQ::PUSH.new(**kwargs)
         SocketSetup.apply_options(pull, config)
         SocketSetup.apply_options(push, config)
         pull.recv_hwm = PIPE_HWM unless config.recv_hwm

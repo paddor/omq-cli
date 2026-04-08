@@ -24,7 +24,7 @@ module OMQ
       # Create and fully configure a socket from +klass+ and +config+.
       #
       def self.build(klass, config)
-        sock = klass.new
+        sock = config.ffi ? klass.new(backend: :ffi) : klass.new
         sock.conflate = true if config.conflate && %w[pub radio].include?(config.type_name)
         apply_options(sock, config)
         sock.max_message_size = config.recv_maxsz if config.recv_maxsz

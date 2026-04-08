@@ -58,6 +58,7 @@ module OMQ
       :curve_server,
       :curve_server_key,
       :crypto,
+      :ffi,
       :stdin_is_tty,
     ) do
       # @return [Boolean] true if this socket type only sends

@@ -37,8 +37,9 @@ module OMQ
 
 
       def setup_sockets
-        @pull = OMQ::PULL.new
-        @push = OMQ::PUSH.new
+        kwargs = @config.ffi ? { backend: :ffi } : {}
+        @pull = OMQ::PULL.new(**kwargs)
+        @push = OMQ::PUSH.new(**kwargs)
         OMQ::CLI::SocketSetup.apply_options(@pull, @config)
         OMQ::CLI::SocketSetup.apply_options(@push, @config)
         @pull.recv_hwm = PipeRunner::PIPE_HWM unless @config.recv_hwm
@@ -71,7 +72,7 @@ module OMQ
         when :message_received
           "omq: << #{OMQ::CLI::Formatter.preview(event.detail[:parts])}"
         else
-          ep = event.endpoint ? " #{event.endpoint}" : ""
+          ep     = event.endpoint ? " #{event.endpoint}" : ""
           detail = event.detail ? " #{event.detail}" : ""
           "omq: #{event.type}#{ep}#{detail}"
         end
