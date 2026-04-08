@@ -10,12 +10,13 @@ module OMQ
     #   - rep           (recv-reply with echo/data/eval)
     #
     class ParallelWorker
-      def initialize(config, socket_sym, endpoints, output_port, log_port)
+      def initialize(config, socket_sym, endpoints, output_port, log_port, error_port)
         @config      = config
         @socket_sym  = socket_sym
         @endpoints   = endpoints
         @output_port = output_port
         @log_port    = log_port
+        @error_port  = error_port
       end
 
 
@@ -28,6 +29,8 @@ module OMQ
           compile_expr
           run_loop
           run_end_block
+        rescue DecompressError => e
+          @error_port.send(e.message)
         ensure
           @sock&.close
         end

@@ -367,9 +367,8 @@ module OMQ
             require "omq" unless defined?(OMQ::VERSION)
             opts[:scripts] << (v == "-" ? :stdin : (v.start_with?("./", "../") ? File.expand_path(v) : v))
           }
-          o.on("-P", "--parallel [N]", Integer, "Parallel Ractor workers for pipe (default: nproc, max 16)") { |v|
-            require "etc"
-            opts[:parallel] = [v || Etc.nprocessors, 16].min
+          o.on("-P", "--parallel N", Integer, "Parallel Ractor workers (max 16)") { |v|
+            opts[:parallel] = [v, 16].min
           }
 
           o.separator "\nCURVE encryption (requires system libsodium):"

@@ -8,7 +8,7 @@ module OMQ
       # Default HWM for pipe sockets when the user hasn't set one.
       # Much lower than the socket default (1000) to bound memory
       # with large messages in pipeline stages.
-      PIPE_HWM = 64
+      PIPE_HWM = 16
 
       # @return [Config] frozen CLI configuration
       attr_reader :config
@@ -129,9 +129,16 @@ module OMQ
         in_eps  = RactorHelpers.preresolve_tcp(in_eps)
         out_eps = RactorHelpers.preresolve_tcp(out_eps)
         log_port, log_thread = RactorHelpers.start_log_consumer
+        error_port = Ractor::Port.new
+        error_thread = Thread.new(error_port) do |p|
+          msg = p.receive
+          abort "omq: #{msg}" unless msg.equal?(RactorHelpers::SHUTDOWN)
+        rescue Ractor::ClosedError
+          # port closed, no error
+        end
         workers = config.parallel.times.map do
-          ::Ractor.new(config, in_eps, out_eps, log_port) do |cfg, ins, outs, lport|
-            PipeWorker.new(cfg, ins, outs, lport).call
+          ::Ractor.new(config, in_eps, out_eps, log_port, error_port) do |cfg, ins, outs, lport, eport|
+            PipeWorker.new(cfg, ins, outs, lport, eport).call
           end
         end
         workers.each do |w|
@@ -140,6 +147,7 @@ module OMQ
           $stderr.write("omq: Ractor error: #{e.cause&.message || e.message}\n")
         end
       ensure
+        RactorHelpers.stop_consumer(error_port, error_thread) if error_port
         RactorHelpers.stop_consumer(log_port, log_thread) if log_port
       end
 

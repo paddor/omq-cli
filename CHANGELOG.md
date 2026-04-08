@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.8.2 — 2026-04-08
+
+### Fixed
+
+- **`DecompressError` handling** — decompression failures now raise a proper
+  `DecompressError` instead of calling `abort`. In parallel mode (`-P`),
+  errors are sent through a dedicated `Ractor::Port` with a consumer thread
+  that aborts cleanly (exit code 1, one error message). Previously, `Async do`
+  swallowed the exception and the process exited silently.
+- **Pipe memory growth** — pipe sockets now pass `recv_hwm` / `send_hwm` via
+  constructor kwargs so the engine captures them before internal queue sizing.
+  Previously, setters were called after the engine was initialized and had no
+  effect on staging queue capacity.
+
+### Changed
+
+- **`-P N` mandatory argument** — `-P` now requires an explicit worker count.
+  Previously, `-Pq` silently consumed `-q` as the argument to `-P`, making
+  `-q` (quiet) ineffective.
+- **Pipe default HWM lowered to 16** — reduced from 64 to further bound memory
+  with large messages in pipeline stages.
+
 ## 0.8.1 — 2026-04-08
 
 ### Fixed

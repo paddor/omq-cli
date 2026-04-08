@@ -55,10 +55,17 @@ module OMQ
         eps = RactorHelpers.preresolve_tcp(config.endpoints)
         output_port, output_thread = RactorHelpers.start_output_consumer
         log_port, log_thread = RactorHelpers.start_log_consumer
+        error_port = Ractor::Port.new
+        error_thread = Thread.new(error_port) do |p|
+          msg = p.receive
+          abort "omq: #{msg}" unless msg.equal?(RactorHelpers::SHUTDOWN)
+        rescue Ractor::ClosedError
+          # port closed, no error
+        end
 
         workers = config.parallel.times.map do
-          ::Ractor.new(config, socket_sym, eps, output_port, log_port) do |cfg, sym, e, oport, lport|
-            ParallelWorker.new(cfg, sym, e, oport, lport).call
+          ::Ractor.new(config, socket_sym, eps, output_port, log_port, error_port) do |cfg, sym, e, oport, lport, eport|
+            ParallelWorker.new(cfg, sym, e, oport, lport, eport).call
           end
         end
 
@@ -68,6 +75,7 @@ module OMQ
           $stderr.write("omq: Ractor error: #{e.cause&.message || e.message}\n")
         end
       ensure
+        RactorHelpers.stop_consumer(error_port, error_thread) if error_port
         RactorHelpers.stop_consumer(output_port, output_thread) if output_port
         RactorHelpers.stop_consumer(log_port, log_thread) if log_port
       end

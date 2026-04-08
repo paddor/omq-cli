@@ -2,6 +2,9 @@
 
 module OMQ
   module CLI
+    # Raised when Zstandard decompression fails.
+    class DecompressError < RuntimeError; end
+
     # Handles encoding/decoding messages in the configured format,
     # plus optional Zstandard compression.
     class Formatter
@@ -96,7 +99,7 @@ module OMQ
       def decompress(parts)
         @compress ? parts.map { |p| Zstd.decompress(p) } : parts
       rescue
-        abort "omq: decompression failed (did the sender use --compress?)"
+        raise DecompressError, "decompression failed (did the sender use --compress?)"
       end
 
 

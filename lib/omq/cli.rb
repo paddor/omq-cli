@@ -246,6 +246,9 @@ module OMQ
                    runner_class.new(config)
                  end
         runner.call(task)
+      rescue DecompressError => e
+        $stderr.puts "omq: #{e.message}"
+        exit 1
       rescue IO::TimeoutError, Async::TimeoutError
         $stderr.puts "omq: timeout" unless config.quiet
         exit 2

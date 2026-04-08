@@ -6,11 +6,12 @@ module OMQ
     # Each worker owns its own Async reactor, PULL socket, and PUSH socket.
     #
     class PipeWorker
-      def initialize(config, in_eps, out_eps, log_port)
-        @config   = config
-        @in_eps   = in_eps
-        @out_eps  = out_eps
-        @log_port = log_port
+      def initialize(config, in_eps, out_eps, log_port, error_port = nil)
+        @config     = config
+        @in_eps     = in_eps
+        @out_eps    = out_eps
+        @log_port   = log_port
+        @error_port = error_port
       end
 
 
@@ -23,6 +24,8 @@ module OMQ
           compile_expr
           run_message_loop
           run_end_block
+        rescue OMQ::CLI::DecompressError => e
+          @error_port&.send(e.message)
         ensure
           @pull&.close
           @push&.close
