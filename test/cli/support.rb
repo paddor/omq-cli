@@ -6,7 +6,7 @@ require "json"
 require "stringio"
 
 require "msgpack"
-require "zstd-ruby"
+require "rlz4"
 
 # Suppress stderr/stdout from abort/puts during validation tests.
 def quietly

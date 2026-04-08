@@ -339,9 +339,9 @@ module OMQ
                                    end
           }
           o.on("--heartbeat-ivl SECS", Float, "ZMTP heartbeat interval (detects dead peers)") { |v| opts[:heartbeat_ivl] = v }
-          o.on("--recv-maxsz COUNT", Integer, "Max inbound message size in bytes (larger messages dropped)") { |v| opts[:recv_maxsz] = v }
-          o.on("--send-hwm N", Integer, "Send high water mark (default 1000, 0=unbounded)") { |v| opts[:send_hwm] = v }
-          o.on("--recv-hwm N", Integer, "Recv high water mark (default 1000, 0=unbounded)") { |v| opts[:recv_hwm] = v }
+          o.on("--recv-maxsz SIZE", "Max inbound message size, e.g. 4096, 64K, 1M, 2G (default 1M, 0=unlimited; larger messages drop the connection)") { |v| opts[:recv_maxsz] = parse_byte_size(v) }
+          o.on("--send-hwm N", Integer, "Send high water mark (default 100, 0=unbounded)") { |v| opts[:send_hwm] = v }
+          o.on("--recv-hwm N", Integer, "Recv high water mark (default 100, 0=unbounded)") { |v| opts[:recv_hwm] = v }
           o.on("--sndbuf N", "SO_SNDBUF kernel buffer size (e.g. 4K, 1M)") { |v| opts[:sndbuf] = parse_byte_size(v) }
           o.on("--rcvbuf N", "SO_RCVBUF kernel buffer size (e.g. 4K, 1M)") { |v| opts[:rcvbuf] = parse_byte_size(v) }
 
@@ -349,8 +349,8 @@ module OMQ
           o.on("--conflate", "Keep only last message per subscriber (PUB/RADIO)") { opts[:conflate] = true }
 
           o.separator "\nCompression:"
-          o.on("-z", "--compress", "Zstandard compression per frame (modal with --in/--out)") do
-            require "zstd-ruby"
+          o.on("-z", "--compress", "LZ4 compression per frame (modal with --in/--out)") do
+            require "rlz4"
             case pipe_side
             when :in
               opts[:compress_in] = true
@@ -439,21 +439,20 @@ module OMQ
       end
 
 
-      # Parses a byte size string with optional K/M suffix.
+      # Parses a byte size string with an optional K/M/G suffix (binary,
+      # i.e. 1K = 1024 bytes).
       #
-      # @param str [String] e.g. "4096", "4K", "1M"
+      # @param str [String] e.g. "4096", "4K", "1M", "2G"
       # @return [Integer] size in bytes
       #
       def parse_byte_size(str)
         case str
-        when /\A(\d+)[kK]\z/
-          $1.to_i * 1024
-        when /\A(\d+)[mM]\z/
-          $1.to_i * 1024 * 1024
-        when /\A\d+\z/
-          str.to_i
+        when /\A(\d+)[kK]\z/ then $1.to_i * 1024
+        when /\A(\d+)[mM]\z/ then $1.to_i * 1024 * 1024
+        when /\A(\d+)[gG]\z/ then $1.to_i * 1024 * 1024 * 1024
+        when /\A\d+\z/       then str.to_i
         else
-          abort "invalid byte size: #{str} (use e.g. 4096, 4K, 1M)"
+          abort "invalid byte size: #{str} (use e.g. 4096, 4K, 1M, 2G)"
         end
       end
 

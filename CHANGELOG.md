@@ -1,6 +1,28 @@
 # Changelog
 
-## Unreleased
+## 0.9.0 — 2026-04-08
+
+### Changed
+
+- **`--recv-maxsz` defaults to 1 MiB in the CLI** — the underlying `omq`
+  library no longer imposes a default (it's `nil`/unlimited as of this
+  release), but the CLI keeps a conservative 1 MiB cap for safety when
+  connecting to untrusted peers from a terminal. Pass `--recv-maxsz 0`
+  to disable the cap explicitly, or `--recv-maxsz N` to raise it.
+- **Default HWM lowered to 100** (from libzmq's 1000) for both send and
+  recv. The CLI is typically used interactively or for short pipelines
+  where a smaller in-flight queue keeps memory bounded and surfaces
+  backpressure earlier. Users who want the old behavior can pass
+  `--send-hwm 1000 --recv-hwm 1000` (or `0` for unbounded). Pipe worker
+  sockets are unaffected — they still override to `PIPE_HWM` internally.
+- **Compression codec: Zstandard → LZ4 frame format (BREAKING on the wire).**
+  `--compress` now uses the new [`rlz4`](../rlz4) gem (Rust extension over
+  `lz4_flex`) instead of `zstd-ruby`. Motivation: `zstd-ruby` is the only
+  existing Ractor-safe compressor gem, but LZ4 is a better fit for the
+  per-message-part workload (smaller frames, lower CPU). `rlz4` is
+  Ractor-safe by construction, so parallel `-P` workers now use the same
+  codec as the sequential path. **Wire format is incompatible** with prior
+  omq-cli versions when `--compress` is in use — both ends must upgrade.
 
 ### Added
 
@@ -17,6 +39,10 @@
   derives its reply from `--recv-eval` / `-e`, so `-E` was silently
   ignored and the runner fell through to reading stdin, hanging the
   request-reply cycle.
+- **`-vvv` preview of REP/REQ envelopes** — empty delimiter frames now
+  render as `[0B]` instead of an empty string, so a REP reply with wire
+  parts `["", "1"]` previews as `(1B) [0B]|1` instead of the misleading
+  `(1B) |1` with a dangling leading pipe.
 
 ## 0.8.2 — 2026-04-08
 

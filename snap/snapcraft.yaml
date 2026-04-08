@@ -128,7 +128,7 @@ parts:
       RUBY="$CRAFT_STAGE/bin/ruby"
       GEM="$CRAFT_STAGE/bin/gem"
       "$RUBY" "$GEM" install --no-document --install-dir "$GEM_HOME" \
-        omq-cli rbnacl zstd-ruby msgpack
+        omq-cli rbnacl rlz4 msgpack
       # Strip native extensions
       find "$GEM_HOME" -type f -name '*.so' -exec strip --strip-unneeded {} + || true
       # Prune caches and per-gem dev trees

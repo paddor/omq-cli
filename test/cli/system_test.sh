@@ -207,7 +207,7 @@ check "-F reads from file" "from file" "$(cat $TMPDIR/file_out.txt)"
 
 # -- Compression (-z) -----------------------------------------------
 
-if bundle exec ruby -e 'require "zstd-ruby"' 2>>"$STDERR_LOG"; then
+if bundle exec ruby -e 'require "rlz4"' 2>>"$STDERR_LOG"; then
   echo "Compression:"
   U=$(ipc)
   PAYLOAD=$(ruby -e "puts 'x' * 200")
@@ -223,7 +223,7 @@ if bundle exec ruby -e 'require "zstd-ruby"' 2>>"$STDERR_LOG"; then
   wait
   check "compression round-trip (small)" "tiny" "$(cat $TMPDIR/compress_small_out.txt)"
 else
-  echo "Compression: skipped (zstd-ruby not installed)"
+  echo "Compression: skipped (rlz4 not installed)"
 fi
 
 # -- Interval sending (-i) ------------------------------------------

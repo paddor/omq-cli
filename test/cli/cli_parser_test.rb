@@ -452,6 +452,32 @@ describe "OMQ::CLI::CliParser.parse" do
     assert_equal 65536, opts[:recv_maxsz]
   end
 
+  it "parses --recv-maxsz with K suffix" do
+    opts = OMQ::CLI::CliParser.parse(["pull", "-b", "tcp://:1", "--recv-maxsz", "64K"])
+    assert_equal 64 * 1024, opts[:recv_maxsz]
+  end
+
+  it "parses --recv-maxsz with M suffix" do
+    opts = OMQ::CLI::CliParser.parse(["pull", "-b", "tcp://:1", "--recv-maxsz", "4M"])
+    assert_equal 4 * 1024 * 1024, opts[:recv_maxsz]
+  end
+
+  it "parses --recv-maxsz with G suffix" do
+    opts = OMQ::CLI::CliParser.parse(["pull", "-b", "tcp://:1", "--recv-maxsz", "2G"])
+    assert_equal 2 * 1024 * 1024 * 1024, opts[:recv_maxsz]
+  end
+
+  it "parses --recv-maxsz 0 as unlimited marker" do
+    opts = OMQ::CLI::CliParser.parse(["pull", "-b", "tcp://:1", "--recv-maxsz", "0"])
+    assert_equal 0, opts[:recv_maxsz]
+  end
+
+  it "rejects --recv-maxsz with invalid suffix" do
+    assert_raises(SystemExit) do
+      quietly { OMQ::CLI::CliParser.parse(["pull", "-b", "tcp://:1", "--recv-maxsz", "4T"]) }
+    end
+  end
+
   it "defaults recv_maxsz to nil" do
     opts = OMQ::CLI::CliParser.parse(["pull", "-b", "tcp://:1"])
     assert_nil opts[:recv_maxsz]

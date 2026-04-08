@@ -17,3 +17,4 @@ gem "omq-rfc-p2p",          path: ENV["OMQ_DEV"] ? "../omq-rfc-p2p" : nil
 gem "protocol-zmtp",        path: ENV["OMQ_DEV"] ? "../protocol-zmtp" : nil
 gem "nuckle",               path: ENV["OMQ_DEV"] ? "../nuckle" : nil
 gem "omq-ffi",              path: "../omq-ffi", require: false if ENV["OMQ_DEV"]
+gem "rlz4",                 path: ENV["OMQ_DEV"] ? "../rlz4" : nil

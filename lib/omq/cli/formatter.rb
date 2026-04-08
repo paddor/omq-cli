@@ -2,14 +2,14 @@
 
 module OMQ
   module CLI
-    # Raised when Zstandard decompression fails.
+    # Raised when LZ4 decompression fails.
     class DecompressError < RuntimeError; end
 
     # Handles encoding/decoding messages in the configured format,
-    # plus optional Zstandard compression.
+    # plus optional LZ4 compression.
     class Formatter
       # @param format [Symbol] wire format (:ascii, :quoted, :raw, :jsonl, :msgpack, :marshal)
-      # @param compress [Boolean] whether to apply Zstandard compression per frame
+      # @param compress [Boolean] whether to apply LZ4 compression per frame
       def initialize(format, compress: false)
         @format   = format
         @compress = compress
@@ -83,22 +83,22 @@ module OMQ
       end
 
 
-      # Compresses each frame with Zstandard if compression is enabled.
+      # Compresses each frame with LZ4 if compression is enabled.
       #
       # @param parts [Array<String>] message frames
       # @return [Array<String>] optionally compressed frames
       def compress(parts)
-        @compress ? parts.map { |p| Zstd.compress(p) } : parts
+        @compress ? parts.map { |p| RLZ4.compress(p) } : parts
       end
 
 
-      # Decompresses each frame with Zstandard if compression is enabled.
+      # Decompresses each frame with LZ4 if compression is enabled.
       #
       # @param parts [Array<String>] possibly compressed message frames
       # @return [Array<String>] decompressed frames
       def decompress(parts)
-        @compress ? parts.map { |p| Zstd.decompress(p) } : parts
-      rescue
+        @compress ? parts.map { |p| RLZ4.decompress(p) } : parts
+      rescue RLZ4::DecompressError
         raise DecompressError, "decompression failed (did the sender use --compress?)"
       end
 
@@ -117,7 +117,13 @@ module OMQ
 
 
       def self.preview_frame(part)
-        bytes     = part.b
+        bytes = part.b
+        # Empty frames must render as a visible marker, not as the empty
+        # string — otherwise joining with "|" would produce misleading
+        # output like "|body" for REP/REQ-style envelopes where the first
+        # wire frame is an empty delimiter.
+        return "[0B]" if bytes.empty?
+
         sample    = bytes[0, 12]
         printable = sample.count("\x20-\x7e")
 

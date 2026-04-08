@@ -336,7 +336,8 @@ omq pull -b tcp://:5557 -t 5
 
 ## Compression
 
-Both sides must use `--compress` (`-z`). Requires the `zstd-ruby` gem.
+Both sides must use `--compress` (`-z`). Uses LZ4 frame format, provided
+by the `rlz4` gem (Ractor-safe, Rust extension via `lz4_flex`).
 
 ```sh
 omq push -c tcp://remote:5557 -z < data.txt
