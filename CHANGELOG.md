@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.1 — 2026-04-08
+
+### Fixed
+
+- **Binary frame preview** — compressed or binary message frames now show
+  `[NB]` instead of unreadable dot-filled strings in `-vvv` monitor output.
+  Frames where less than half the sample bytes are printable ASCII are detected
+  as binary.
+
 ## 0.8.0 — 2026-04-08
 
 ### Added
