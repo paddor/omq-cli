@@ -561,10 +561,10 @@ check "duplicate endpoints errors" "1" "$EXITCODE"
 
 echo "HWM options:"
 U=$(ipc)
-$OMQ pull -b $U --recv-hwm 10 -n 1 $T > $TMPDIR/hwm_out.txt 2>>"$STDERR_LOG" &
-echo 'hwm test' | $OMQ push -c $U --send-hwm 10 $T 2>>"$STDERR_LOG"
+$OMQ pull -b $U --hwm 10 -n 1 $T > $TMPDIR/hwm_out.txt 2>>"$STDERR_LOG" &
+echo 'hwm test' | $OMQ push -c $U --hwm 10 $T 2>>"$STDERR_LOG"
 wait
-check "--send-hwm and --recv-hwm accepted" "hwm test" "$(cat $TMPDIR/hwm_out.txt)"
+check "--hwm accepted" "hwm test" "$(cat $TMPDIR/hwm_out.txt)"
 
 # -- Pipe send-hwm: consumer 2 receives after consumer 1 exits ------
 
@@ -572,9 +572,9 @@ echo "Pipe send-hwm reconnect:"
 PIPE_SRC="ipc://@omq_pipe_src_$$"
 PIPE_DST="ipc://@omq_pipe_dst_$$"
 # Use large messages (64KB each) so the kernel buffer fills up and
-# creates real backpressure.  With --send-hwm=1, the pipe retains
+# creates real backpressure.  With --out --hwm 1, the pipe retains
 # un-forwarded messages for a reconnecting consumer.
-$OMQ pipe -c $PIPE_SRC -c $PIPE_DST --send-hwm 1 --reconnect-ivl 0.1 -t 10 2>>"$STDERR_LOG" &
+$OMQ pipe -c $PIPE_SRC --out -c $PIPE_DST --hwm 1 --reconnect-ivl 0.1 -t 10 2>>"$STDERR_LOG" &
 PIPE_PID=$!
 sleep 0.5
 $OMQ pull -b $PIPE_DST -n 2 -t 5 > $TMPDIR/pipe_c1.txt 2>>"$STDERR_LOG" &
@@ -601,8 +601,8 @@ wait 2>/dev/null || true
 echo "Pipe FIFO ordering:"
 FIFO_SRC="ipc://@omq_fifo_src_$$"
 FIFO_DST="ipc://@omq_fifo_dst_$$"
-# Pipe with send-hwm=1 to create backpressure.
-$OMQ pipe -c $FIFO_SRC -c $FIFO_DST --send-hwm 1 --reconnect-ivl 0.1 -t 10 2>>"$STDERR_LOG" &
+# Pipe with --out --hwm 1 to create backpressure.
+$OMQ pipe -c $FIFO_SRC --out -c $FIFO_DST --hwm 1 --reconnect-ivl 0.1 -t 10 2>>"$STDERR_LOG" &
 FIFO_PIPE_PID=$!
 sleep 0.3
 
@@ -615,7 +615,7 @@ ruby -e '10.times { |i| puts "B#{i}#{"Y" * 65536}" }' \
 sleep 0.3
 
 # Consumer pulls 10 messages -- should be A0..A9 in order, no B's mixed in.
-$OMQ pull -b $FIFO_DST --recv-hwm 1 -n 10 -t 5 > $TMPDIR/fifo_out.txt 2>>"$STDERR_LOG" &
+$OMQ pull -b $FIFO_DST --hwm 1 -n 10 -t 5 > $TMPDIR/fifo_out.txt 2>>"$STDERR_LOG" &
 FIFO_C_PID=$!
 if wait $FIFO_C_PID 2>/dev/null; then
   # Extract the prefix before the padding (A0, A1, ..., A9)
@@ -637,7 +637,7 @@ wait 2>/dev/null || true
 echo "Pipe producer-first:"
 PF_SRC="ipc://@omq_pf_src_$$"
 PF_DST="ipc://@omq_pf_dst_$$"
-$OMQ pipe -c $PF_SRC -c $PF_DST --send-hwm 1 --reconnect-ivl 0.1 -t 10 2>>"$STDERR_LOG" &
+$OMQ pipe -c $PF_SRC --out -c $PF_DST --hwm 1 --reconnect-ivl 0.1 -t 10 2>>"$STDERR_LOG" &
 PF_PIPE_PID=$!
 sleep 0.3
 

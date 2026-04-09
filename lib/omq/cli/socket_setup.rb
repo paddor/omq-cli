@@ -7,7 +7,7 @@ module OMQ
     #
     module SocketSetup
       # Default high water mark applied when the user does not pass
-      # --send-hwm / --recv-hwm. Lower than libzmq's default (1000) to keep
+      # --hwm. Lower than libzmq's default (1000) to keep
       # memory footprint small for the typical CLI use cases (interactive
       # debugging, short-lived pipelines). Pipe worker sockets override this
       # with a still-smaller value for tighter backpressure.

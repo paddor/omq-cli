@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **`--send-hwm` / `--recv-hwm` collapsed into a single `--hwm N`** option.
+  Outside pipe modal mode it sets both send and recv HWM on the socket.
+  Inside pipe modal mode it follows the current `--in` / `--out` side:
+  `--in --hwm N` sets the input PULL's recv HWM, `--out --hwm N` sets
+  the output PUSH's send HWM. Breaking CLI change — scripts must update
+  from `--send-hwm`/`--recv-hwm` to `--hwm` (with `--in`/`--out` if they
+  need per-side values in pipe).
+
 ## 0.9.0 — 2026-04-08
 
 ### Changed
