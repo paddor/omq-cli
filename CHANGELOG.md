@@ -26,8 +26,8 @@
 - **Flaky FFI backend tests.** Wait for both REP peers to be connected
   before round-robining requests, instead of only waiting for the first.
 
-- **Empty frames render as `""` in verbose output.** Previously shown as
-  `[0B]`.
+- **Improved verbose preview format.** Empty frames render as `''`
+  instead of `[0B]`. Multipart messages show frame count: `(18B 4F)`.
 
 ## 0.11.4 — 2026-04-10
 

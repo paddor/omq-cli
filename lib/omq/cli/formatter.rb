@@ -108,11 +108,13 @@ module OMQ
       # @param parts [Array<String>] message frames
       # @return [String] truncated preview of each frame joined by |
       def self.preview(parts)
-        total = parts.sum(&:bytesize)
-        shown = parts.first(3).map { |p| preview_frame(p) }
-        tail  = parts.size > 3 ? "|...(#{parts.size} parts)" : ""
+        total  = parts.sum(&:bytesize)
+        nparts = parts.size
+        shown  = parts.first(3).map { |p| preview_frame(p) }
+        tail   = nparts > 3 ? "|..." : ""
+        header = nparts > 1 ? "(#{total}B #{nparts}F)" : "(#{total}B)"
 
-        "(#{total}B) #{shown.join("|")}#{tail}"
+        "#{header} #{shown.join("|")}#{tail}"
       end
 
 
@@ -122,7 +124,7 @@ module OMQ
         # string — otherwise joining with "|" would produce misleading
         # output like "|body" for REP/REQ-style envelopes where the first
         # wire frame is an empty delimiter.
-        return '""' if bytes.empty?
+        return "''" if bytes.empty?
 
         sample    = bytes[0, 12]
         printable = sample.count("\x20-\x7e")

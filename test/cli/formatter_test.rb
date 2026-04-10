@@ -243,17 +243,17 @@ describe OMQ::CLI::Formatter do
       assert_equal "(3B) foo", OMQ::CLI::Formatter.preview(["foo"])
     end
 
-    it "renders an empty frame as quoted empty string" do
-      assert_equal '(0B) ""', OMQ::CLI::Formatter.preview([""])
+    it "renders an empty frame as empty string marker" do
+      assert_equal "(0B) ''", OMQ::CLI::Formatter.preview([""])
     end
 
     it "renders REP-style envelope with leading empty delimiter (no leading pipe)" do
       # ConnSendPump emits wire-level parts [empty_delimiter, body] for REP.
-      assert_equal '(1B) ""|1', OMQ::CLI::Formatter.preview(["", "1"])
+      assert_equal "(1B 2F) ''|1", OMQ::CLI::Formatter.preview(["", "1"])
     end
 
     it "joins multiple frames with |" do
-      assert_equal "(6B) foo|bar", OMQ::CLI::Formatter.preview(["foo", "bar"])
+      assert_equal "(6B 2F) foo|bar", OMQ::CLI::Formatter.preview(["foo", "bar"])
     end
 
     it "truncates long printable frames" do
@@ -267,7 +267,7 @@ describe OMQ::CLI::Formatter do
 
     it "indicates trailing parts when more than 3" do
       preview = OMQ::CLI::Formatter.preview(["a", "b", "c", "d", "e"])
-      assert_equal "(5B) a|b|c|...(5 parts)", preview
+      assert_equal "(5B 5F) a|b|c|...", preview
     end
   end
 end
