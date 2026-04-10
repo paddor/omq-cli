@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.1 — 2026-04-10
 
 ### Changed
 
@@ -36,6 +36,14 @@
 - **Pipe `--out` without `--in` promotes bare endpoints.** Bare `-c`/`-b`
   before `--out` are now treated as `--in` endpoints (and vice versa),
   fixing `pipe -c SRC --out -c DST` which previously errored.
+
+- **Pipe fan-out distributes across output peers.** Multi-output pipes
+  now yield after each send, giving send-pump fibers a turn to drain the
+  shared queue. Without this, one pump monopolized the queue via
+  `drain_send_queue_capped` when messages arrived in bursts.
+
+- **Pipe waits for all output peers with `--timeout`.** `wait_for_peers_with_timeout`
+  now waits for `connection_count >= out_eps.size` instead of just the first peer.
 
 ## 0.11.4 — 2026-04-10
 

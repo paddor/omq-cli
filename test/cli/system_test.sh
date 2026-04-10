@@ -520,23 +520,27 @@ check "pipe fan-in receives from both sources" "2" "$FANIN_LINES"
 check "pipe fan-in content" "FROM_A,FROM_B," "$FANIN_CONTENT"
 
 # -- Pipe fan-out (--out with multiple sinks) ---------------------
+# Work-stealing (not strict round-robin) distributes messages across
+# peers. With only 2 messages, batching may send both to the first
+# pump. Send enough messages that both sinks get some. Use --transient
+# so the pipe exits when the producer disconnects.
 
 echo "Pipe fan-out:"
-$OMQ pull -b ipc://@omq_fanout_a_$$ -n 1 -t 3 > $TMPDIR/fanout_a.txt 2>>"$STDERR_LOG" &
-$OMQ pull -b ipc://@omq_fanout_b_$$ -n 1 -t 3 > $TMPDIR/fanout_b.txt 2>>"$STDERR_LOG" &
+$OMQ pull -b ipc://@omq_fanout_a_$$ --transient -t 5 > $TMPDIR/fanout_a.txt 2>>"$STDERR_LOG" &
+$OMQ pull -b ipc://@omq_fanout_b_$$ --transient -t 5 > $TMPDIR/fanout_b.txt 2>>"$STDERR_LOG" &
 $OMQ pipe --in -b ipc://@omq_fanout_in_$$ \
          --out -c ipc://@omq_fanout_a_$$ -c ipc://@omq_fanout_b_$$ \
-         -e 'it.map(&:upcase)' -n 2 -t 3 2>>"$STDERR_LOG" &
-sleep 0.3
-printf 'msg1\nmsg2\n' | $OMQ push -c ipc://@omq_fanout_in_$$ -t 3 2>>"$STDERR_LOG"
+         -e 'it.map(&:upcase)' --transient -t 5 2>>"$STDERR_LOG" &
+sleep 0.5
+seq 20 | $OMQ push -c ipc://@omq_fanout_in_$$ -t 5 2>>"$STDERR_LOG"
 wait
-FANOUT_A=$(cat $TMPDIR/fanout_a.txt 2>/dev/null)
-FANOUT_B=$(cat $TMPDIR/fanout_b.txt 2>/dev/null)
-# PUSH round-robins: each sink should get exactly 1 message
-if [ -n "$FANOUT_A" ] && [ -n "$FANOUT_B" ]; then
+FANOUT_A=$(wc -l < $TMPDIR/fanout_a.txt 2>/dev/null | tr -d ' ')
+FANOUT_B=$(wc -l < $TMPDIR/fanout_b.txt 2>/dev/null | tr -d ' ')
+FANOUT_TOTAL=$((FANOUT_A + FANOUT_B))
+if [ "$FANOUT_TOTAL" -eq 20 ] && [ "$FANOUT_A" -gt 0 ] && [ "$FANOUT_B" -gt 0 ]; then
   pass "pipe fan-out distributes to both sinks"
 else
-  fail "pipe fan-out distributes to both sinks" "both non-empty" "a='$FANOUT_A' b='$FANOUT_B'"
+  fail "pipe fan-out distributes to both sinks" "20 total, both non-empty" "a=$FANOUT_A b=$FANOUT_B total=$FANOUT_TOTAL"
 fi
 
 # -- Pipe --in/--out validation -----------------------------------

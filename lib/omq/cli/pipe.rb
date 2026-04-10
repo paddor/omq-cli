@@ -55,7 +55,7 @@ module OMQ
         wait_for_peers_with_timeout if config.timeout
         setup_sequential_transient(task)
         @sock.instance_exec(&@recv_begin_proc) if @recv_begin_proc
-        sequential_message_loop
+        sequential_message_loop(fan_out: out_eps.size > 1)
         @sock.instance_exec(&@recv_end_proc) if @recv_end_proc
       ensure
         @pull&.close
@@ -67,10 +67,13 @@ module OMQ
       # it, there's no point waiting: PULL#receive blocks naturally
       # and PUSH buffers up to send_hwm when no peer is present.
       def wait_for_peers_with_timeout
+        _, out_eps = resolve_endpoints
         Fiber.scheduler.with_timeout(config.timeout) do
           Barrier do |barrier|
-            barrier.async(annotation: "wait push peer") { @push.peer_connected.wait }
             barrier.async(annotation: "wait pull peer") { @pull.peer_connected.wait }
+            barrier.async(annotation: "wait push peers") do
+              sleep 0.01 until @push.connection_count >= out_eps.size
+            end
           end
         end
       end
@@ -98,7 +101,7 @@ module OMQ
       end
 
 
-      def sequential_message_loop
+      def sequential_message_loop(fan_out: false)
         n = config.count
         i = 0
         loop do
@@ -109,6 +112,12 @@ module OMQ
           if parts && !parts.empty?
             @push.send(@fmt_out.compress(parts))
           end
+          # Yield after send so send-pump fibers can drain the queue
+          # before the next message is enqueued. Without this, one pump
+          # monopolizes the shared queue via drain_send_queue_capped when
+          # messages arrive in bursts (recv prefetch). Only needed for
+          # multi-output pipes; single-output has no fairness concern.
+          Async::Task.current.yield if fan_out
           i += 1
           break if n && n > 0 && i >= n
         end
