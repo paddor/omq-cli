@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.4 — 2026-04-10
+
+### Fixed
+
+- **Consistent `omq:` prefix on attach lines.** "Bound to" and
+  "Connecting to" log lines now include the `omq: ` prefix, matching
+  the format of monitor event lines.
+
 ## 0.11.2 — 2026-04-10
 
 ### Fixed

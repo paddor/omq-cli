@@ -56,7 +56,7 @@ module OMQ
       # @return [String]
       def format_attach(kind, url, verbose)
         verb = kind == :bind ? "Bound to" : "Connecting to"
-        "#{log_prefix(verbose)}#{verb} #{url}"
+        "#{log_prefix(verbose)}omq: #{verb} #{url}"
       end
 
 
