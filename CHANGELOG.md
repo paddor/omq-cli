@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.12.3 — 2026-04-10
+
+### Fixed
+
+- Gem version
+
 ## 0.12.2 — 2026-04-10
 
 ### Fixed
