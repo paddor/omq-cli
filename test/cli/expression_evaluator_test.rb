@@ -44,6 +44,29 @@ describe "eval_send_expr" do
     end
   end
 
+  it "coerces non-string scalar result via #to_s" do
+    runner = OMQ::CLI::PushRunner.new(
+      make_config(type_name: "push", send_expr: "Time.new(2026, 1, 1)"),
+      OMQ::PUSH
+    )
+    runner.send(:compile_expr)
+    result = runner.send(:eval_send_expr, nil)
+    assert_equal 1, result.size
+    assert_instance_of String, result.first
+  end
+
+  it "coerces non-string array elements via #to_s" do
+    runner = OMQ::CLI::PushRunner.new(
+      make_config(type_name: "push", send_expr: "[42, :sym, Time.new(2026, 1, 1)]"),
+      OMQ::PUSH
+    )
+    runner.send(:compile_expr)
+    result = runner.send(:eval_send_expr, nil)
+    assert_equal "42", result[0]
+    assert_equal "sym", result[1]
+    assert_instance_of String, result[2]
+  end
+
   it "wraps string result in array" do
     runner = OMQ::CLI::PushRunner.new(
       make_config(type_name: "push", send_expr: "'hello'"),

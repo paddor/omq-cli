@@ -262,6 +262,15 @@ printf 'skip\nkeep\n' | $OMQ push -c $U -E 'it.first == "skip" ? nil : it' $T 2>
 wait
 check "-E nil produces no output" "1" "$(wc -l < $TMPDIR/eval_nil_out.txt | tr -d ' ')"
 
+# -- Eval non-string coercion --------------------------------------
+
+echo "Eval non-string coercion:"
+U=$(ipc)
+$OMQ pull -b $U -n 1 $T > $TMPDIR/eval_coerce_out.txt 2>>"$STDERR_LOG" &
+echo "x" | $OMQ push -c $U -E '[42, :sym]' $T 2>>"$STDERR_LOG"
+wait
+check "-E non-string parts coerced via #to_s" "42	sym" "$(cat $TMPDIR/eval_coerce_out.txt)"
+
 # -- Interval quantized timing -------------------------------------
 
 echo "Interval timing:"

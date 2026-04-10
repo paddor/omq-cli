@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.12.2 — 2026-04-10
+
+### Fixed
+
+- **Eval results coerced via `#to_s`.** Non-string eval results (e.g.
+  `-E 'Time.now'`, `-E '[42, :sym]'`) are now coerced to strings
+  instead of raising `NoMethodError` on `#to_str`. Array elements are
+  coerced individually.
+
 ## 0.12.1 — 2026-04-10
 
 ### Changed

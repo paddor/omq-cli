@@ -48,14 +48,8 @@ module OMQ
         return SENT if result.equal?(context)
         return [result] if @format == :marshal
 
-        case result
-        when Array
-          result
-        when String
-          [result]
-        else
-          [result.to_str]
-        end
+        result = result.is_a?(Array) ? result : [result]
+        result.map!(&:to_s)
       rescue => e
         $stderr.puts "omq: eval error: #{e.message} (#{e.class})"
         exit 3
@@ -66,16 +60,9 @@ module OMQ
       # Used inside Ractor worker blocks where instance methods are unavailable.
       #
       def self.normalize_result(result)
-        case result
-        when nil
-          nil
-        when Array
-          result
-        when String
-          [result]
-        else
-          [result.to_s]
-        end
+        return nil if result.nil?
+        result = result.is_a?(Array) ? result : [result]
+        result.map!(&:to_s)
       end
 
 
