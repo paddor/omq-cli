@@ -29,6 +29,10 @@
 - **Improved verbose preview format.** Empty frames render as `''`
   instead of `[0B]`. Multipart messages show frame count: `(18B 4F)`.
 
+- **Compression skips nil/empty frames.** `compress` passes `nil` parts
+  through (coerced to empty frames by the socket layer). `decompress`
+  skips empty frames instead of feeding them to LZ4.
+
 ## 0.11.4 — 2026-04-10
 
 ### Fixed

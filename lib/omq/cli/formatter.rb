@@ -88,16 +88,17 @@ module OMQ
       # @param parts [Array<String>] message frames
       # @return [Array<String>] optionally compressed frames
       def compress(parts)
-        @compress ? parts.map { |p| RLZ4.compress(p) } : parts
+        @compress ? parts.map { |p| RLZ4.compress(p) if p } : parts
       end
 
 
       # Decompresses each frame with LZ4 if compression is enabled.
+      # nil/empty frames pass through — they were nil before send coercion.
       #
       # @param parts [Array<String>] possibly compressed message frames
       # @return [Array<String>] decompressed frames
       def decompress(parts)
-        @compress ? parts.map { |p| RLZ4.decompress(p) } : parts
+        @compress ? parts.map { |p| p && !p.empty? ? RLZ4.decompress(p) : p } : parts
       rescue RLZ4::DecompressError
         raise DecompressError, "decompression failed (did the sender use --compress?)"
       end
