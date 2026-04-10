@@ -103,7 +103,7 @@ describe "OMQ::CLI::CliParser.validate!" do
 
   it "rejects --recv-eval on send-only sockets" do
     %w[push pub scatter radio].each do |type|
-      opts = base_opts(type).merge(recv_expr: "$F")
+      opts = base_opts(type).merge(recv_expr: "it")
       assert_raises(SystemExit, "expected --recv-eval to be rejected for #{type}") {
         quietly { OMQ::CLI::CliParser.validate!(opts) }
       }
@@ -112,7 +112,7 @@ describe "OMQ::CLI::CliParser.validate!" do
 
   it "rejects --send-eval on recv-only sockets" do
     %w[pull sub gather dish].each do |type|
-      opts = base_opts(type).merge(send_expr: "$F")
+      opts = base_opts(type).merge(send_expr: "it")
       assert_raises(SystemExit, "expected --send-eval to be rejected for #{type}") {
         quietly { OMQ::CLI::CliParser.validate!(opts) }
       }
@@ -121,7 +121,7 @@ describe "OMQ::CLI::CliParser.validate!" do
 
   it "rejects --send-eval combined with --target" do
     %w[router server peer].each do |type|
-      opts = base_opts(type).merge(send_expr: "$F", target: "peer-1")
+      opts = base_opts(type).merge(send_expr: "it", target: "peer-1")
       assert_raises(SystemExit, "expected --send-eval + --target to be rejected for #{type}") {
         quietly { OMQ::CLI::CliParser.validate!(opts) }
       }
@@ -130,13 +130,13 @@ describe "OMQ::CLI::CliParser.validate!" do
 
   it "allows --recv-eval on recv-only sockets" do
     %w[pull sub gather dish].each do |type|
-      OMQ::CLI::CliParser.validate!(base_opts(type).merge(recv_expr: "$F"))
+      OMQ::CLI::CliParser.validate!(base_opts(type).merge(recv_expr: "it"))
     end
   end
 
   it "allows --send-eval on send-only sockets" do
     %w[push pub scatter radio].each do |type|
-      OMQ::CLI::CliParser.validate!(base_opts(type).merge(send_expr: "$F"))
+      OMQ::CLI::CliParser.validate!(base_opts(type).merge(send_expr: "it"))
     end
   end
 
@@ -147,7 +147,7 @@ describe "OMQ::CLI::CliParser.validate!" do
   it "allows both --send-eval and --recv-eval on bidirectional sockets" do
     %w[req rep pair dealer router client server peer channel].each do |type|
       next if %w[rep].include?(type) # REP send-eval may not apply but validation doesn't block it
-      OMQ::CLI::CliParser.validate!(base_opts(type).merge(send_expr: "$F", recv_expr: "$F"))
+      OMQ::CLI::CliParser.validate!(base_opts(type).merge(send_expr: "it", recv_expr: "it"))
     end
   end
 
@@ -361,14 +361,14 @@ describe "OMQ::CLI::CliParser.parse" do
   end
 
   it "parses -e as --recv-eval" do
-    opts = OMQ::CLI::CliParser.parse(["pull", "-b", "tcp://:1", "-e", "$F.map(&:upcase)"])
-    assert_equal "$F.map(&:upcase)", opts[:recv_expr]
+    opts = OMQ::CLI::CliParser.parse(["pull", "-b", "tcp://:1", "-e", "it.map(&:upcase)"])
+    assert_equal "it.map(&:upcase)", opts[:recv_expr]
     assert_nil opts[:send_expr]
   end
 
   it "parses -E as --send-eval" do
-    opts = OMQ::CLI::CliParser.parse(["push", "-c", "tcp://x:1", "-E", "$F.map(&:upcase)"])
-    assert_equal "$F.map(&:upcase)", opts[:send_expr]
+    opts = OMQ::CLI::CliParser.parse(["push", "-c", "tcp://x:1", "-E", "it.map(&:upcase)"])
+    assert_equal "it.map(&:upcase)", opts[:send_expr]
     assert_nil opts[:recv_expr]
   end
 

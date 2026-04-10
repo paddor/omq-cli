@@ -6,11 +6,11 @@ require "securerandom"
 # -- Parallel execution (-P) ------------------------------------------
 #
 # FIB expression (iterative, no method definition):
-#   n = Integer($F.first); a,b = 0,1; n.times { a,b = b,a+b }; [a.to_s]
+#   n = Integer(it.first); a,b = 0,1; n.times { a,b = b,a+b }; [a.to_s]
 #
 # fib(1..10) = [1, 1, 2, 3, 5, 8, 13, 21, 34, 55]  sum = 143
 #
-FIB_EXPR = "n=Integer($F.first);a,b=0,1;n.times{a,b=b,a+b};[a.to_s]".freeze
+FIB_EXPR = "n=Integer(it.first);a,b=0,1;n.times{a,b=b,a+b};[a.to_s]".freeze
 FIB_1_10 = [1, 1, 2, 3, 5, 8, 13, 21, 34, 55].freeze
 
 
@@ -204,7 +204,7 @@ describe "pipe -P parallel execution" do
     work_url    = ipc_url("pipe-begin-work")
     results_url = ipc_url("pipe-begin-results")
 
-    expr = "BEGIN{ @s=0 } @s += Integer($F.first); nil END{ [$_=@s.to_s] }"
+    expr = "BEGIN{ @s=0 } @s += Integer(it.first); nil END{ [$_=@s.to_s] }"
 
     cfg = make_config(
       type_name:     "pipe",

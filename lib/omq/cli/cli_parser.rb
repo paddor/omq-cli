@@ -16,7 +16,7 @@ module OMQ
           +-----+  "HELLO"    +-----+
 
           # terminal 1: echo server
-          omq rep --bind tcp://:5555 --recv-eval '$F.map(&:upcase)'
+          omq rep --bind tcp://:5555 --recv-eval 'it.map(&:upcase)'
 
           # terminal 2: send a request
           echo "hello" | omq req --connect tcp://localhost:5555
@@ -80,7 +80,7 @@ module OMQ
           echo -e "hello\nworld" | omq push --bind ipc://@work
 
           # terminal 2: worker -- uppercase each message
-          omq pipe -c ipc://@work -c ipc://@sink -e '$F.map(&:upcase)'
+          omq pipe -c ipc://@work -c ipc://@sink -e 'it.map(&:upcase)'
           # terminal 3: collector
           omq pull --bind ipc://@sink
 
@@ -88,24 +88,24 @@ module OMQ
           omq pipe -c ipc://@work -c ipc://@sink -P4 -r./fib -e 'fib(Integer($_)).to_s'
 
           # exit when producer disconnects (--transient)
-          omq pipe -c ipc://@work -c ipc://@sink --transient -e '$F.map(&:upcase)'
+          omq pipe -c ipc://@work -c ipc://@sink --transient -e 'it.map(&:upcase)'
 
           # fan-in: multiple sources -> one sink
           omq pipe --in -c ipc://@work1 -c ipc://@work2 \
-            --out -c ipc://@sink -e '$F.map(&:upcase)'
+            --out -c ipc://@sink -e 'it.map(&:upcase)'
 
           # fan-out: one source -> multiple sinks (round-robin)
-          omq pipe --in -b tcp://:5555 --out -c ipc://@sink1 -c ipc://@sink2 -e '$F'
+          omq pipe --in -b tcp://:5555 --out -c ipc://@sink1 -c ipc://@sink2 -e 'it'
 
         -- CLIENT / SERVER (draft) ----------------------------------
 
           +--------+  "hello"   +--------+
-          | CLIENT |------------>| SERVER | --recv-eval '$F.map(&:upcase)'
+          | CLIENT |------------>| SERVER | --recv-eval 'it.map(&:upcase)'
           |        |<------------|        |
           +--------+  "HELLO"   +--------+
 
           # terminal 1: upcasing server
-          omq server --bind tcp://:5555 --recv-eval '$F.map(&:upcase)'
+          omq server --bind tcp://:5555 --recv-eval 'it.map(&:upcase)'
 
           # terminal 2: client
           echo "hello" | omq client --connect tcp://localhost:5555
@@ -156,25 +156,25 @@ module OMQ
         -- Ruby Eval ------------------------------------------------
 
           # filter incoming: only pass messages containing "error"
-          omq pull -b tcp://:5557 --recv-eval '$F.first.include?("error") ? $F : nil'
+          omq pull -b tcp://:5557 --recv-eval 'it.first.include?("error") ? it : nil'
 
           # transform incoming with gems
-          omq sub -c tcp://localhost:5556 -rjson -e 'JSON.parse($F.first)["temperature"]'
+          omq sub -c tcp://localhost:5556 -rjson -e 'JSON.parse(it.first)["temperature"]'
 
           # require a local file, use its methods
-          omq rep --bind tcp://:5555 --require ./transform.rb -e 'upcase_all($F)'
+          omq rep --bind tcp://:5555 --require ./transform.rb -e 'upcase_all(it)'
 
           # next skips, break stops -- regexps match against $_
-          omq pull -b tcp://:5557 -e 'next if /^#/; break if /quit/; $F'
+          omq pull -b tcp://:5557 -e 'next if /^#/; break if /quit/; it'
 
           # BEGIN/END blocks (like awk) -- accumulate and summarize
           omq pull -b tcp://:5557 -e 'BEGIN{@sum = 0} @sum += Integer($_); nil END{puts @sum}'
 
           # transform outgoing messages
-          echo hello | omq push -c tcp://localhost:5557 --send-eval '$F.map(&:upcase)'
+          echo hello | omq push -c tcp://localhost:5557 --send-eval 'it.map(&:upcase)'
 
           # REQ: transform request and reply independently
-          echo hello | omq req -c tcp://localhost:5555 -E '$F.map(&:upcase)' -e '$_'
+          echo hello | omq req -c tcp://localhost:5555 -E 'it.map(&:upcase)' -e '$_'
 
         -- Script Handlers (-r) ------------------------------------
 
@@ -185,7 +185,7 @@ module OMQ
           omq pull --bind tcp://:5557 -r./handler.rb
 
           # combine script handlers with inline eval
-          omq req -c tcp://localhost:5555 -r./handler.rb -E '$F.map(&:upcase)'
+          omq req -c tcp://localhost:5555 -r./handler.rb -E 'it.map(&:upcase)'
 
           # OMQ.outgoing { |msg| ... }   -- registered outgoing transform
           # OMQ.incoming { |msg| ... }   -- registered incoming transform
@@ -373,8 +373,8 @@ module OMQ
           end
 
           o.separator "\nProcessing (-e = incoming, -E = outgoing):"
-          o.on("-e", "--recv-eval EXPR", "Eval Ruby for each incoming message ($F = parts)") { |v| opts[:recv_expr] = v }
-          o.on("-E", "--send-eval EXPR", "Eval Ruby for each outgoing message ($F = parts)") { |v| opts[:send_expr] = v }
+          o.on("-e", "--recv-eval EXPR", "Eval Ruby for each incoming message (it = parts)") { |v| opts[:recv_expr] = v }
+          o.on("-E", "--send-eval EXPR", "Eval Ruby for each outgoing message (it = parts)") { |v| opts[:send_expr] = v }
           o.on("-r", "--require LIB",  "Require lib/file in Async context; use '-' for stdin. Scripts can register OMQ.outgoing/incoming") { |v|
             require "omq" unless defined?(OMQ::VERSION)
             opts[:scripts] << (v == "-" ? :stdin : (v.start_with?("./", "../") ? File.expand_path(v) : v))

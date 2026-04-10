@@ -29,12 +29,12 @@ module OMQ
           @begin_proc = eval("proc { #{begin_body} }") if begin_body # rubocop:disable Security/Eval
           @end_proc   = eval("proc { #{end_body} }")   if end_body   # rubocop:disable Security/Eval
           if expr && !expr.strip.empty?
-            @eval_proc = eval("proc { $_ = $F&.first; #{expr} }") # rubocop:disable Security/Eval
+            @eval_proc = eval("proc { $_ = it&.first; #{expr} }") # rubocop:disable Security/Eval
           end
         elsif fallback_proc
-          @eval_proc = proc { |msg|
-            $_ = msg&.first
-            fallback_proc.call(msg)
+          @eval_proc = proc {
+            $_ = it&.first
+            fallback_proc.call(it)
           }
         end
       end
@@ -46,7 +46,6 @@ module OMQ
       def call(parts, context)
         return parts unless @eval_proc
 
-        $F     = parts
         result = context.instance_exec(parts, &@eval_proc)
         return nil  if result.nil?
         return SENT if result.equal?(context)
@@ -112,8 +111,7 @@ module OMQ
         end_proc   = eval("proc { #{end_body} }")   if end_body   # rubocop:disable Security/Eval
         eval_proc  = nil
         if expr && !expr.strip.empty?
-          ractor_expr = expr.gsub(/\$F\b/, "__F")
-          eval_proc   = eval("proc { |__F| $_ = __F&.first; #{ractor_expr} }") # rubocop:disable Security/Eval
+          eval_proc = eval("proc { $_ = it&.first; #{expr} }") # rubocop:disable Security/Eval
         end
 
         [begin_proc, end_proc, eval_proc]

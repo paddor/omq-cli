@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **`it` replaces `$F` in eval expressions.** The `-e`/`-E` message
+  parts variable is now Ruby's default block variable `it` instead of
+  the `$F` global. `$_` (first part) is unchanged. This also simplifies
+  Ractor worker compilation by removing the `$F` → `__F` rewrite.
+
 ## 0.11.4 — 2026-04-10
 
 ### Fixed

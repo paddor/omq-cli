@@ -85,7 +85,7 @@ describe "REQ -> mixed-backend REPs" do
     pure_url = ffi_test_url("rep-pure-eval")
     ffi_url  = ffi_test_url("rep-ffi-eval")
     n_reqs   = 6
-    upcase   = "$F.map(&:upcase)"
+    upcase   = "it.map(&:upcase)"
 
     pure_thread = spawn_rep(make_rep_cfg(url: pure_url, ffi: false, recv_expr: upcase, count: n_reqs / 2))
     ffi_thread  = spawn_rep(make_rep_cfg(url: ffi_url,  ffi: true,  recv_expr: upcase, count: n_reqs / 2))

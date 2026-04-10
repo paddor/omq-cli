@@ -36,7 +36,7 @@ def run_pipeline(mode, n, fib_max)
   producer_cmd = "ruby --yjit -e \"ints = (1..#{fib_max}).cycle; #{n}.times { puts ints.next }\" " \
                  "| #{OMQ} push --bind #{work} --linger 5 2>/dev/null"
 
-  fib_expr = "-r#{BENCH_DIR}/fib.rb -e '[fib(Integer($F.first)).to_s]'"
+  fib_expr = "-r#{BENCH_DIR}/fib.rb -e '[fib(Integer(it.first)).to_s]'"
 
   case mode
   when :multiprocess

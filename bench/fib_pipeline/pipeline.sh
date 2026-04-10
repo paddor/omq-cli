@@ -45,7 +45,7 @@ PRODUCER_PID=$!
 seq $WORKERS | xargs -P $WORKERS -I{} \
   $OMQ pipe -c $WORK -c $SINK \
     -r"$BENCH_DIR/fib.rb" \
-    -e '[fib(Integer($F.first)).to_s]' \
+    -e '[fib(Integer(it.first)).to_s]' \
     --transient -t 1 2>/dev/null & # -t 1: exit if producer is already gone
 WORKERS_PID=$!
 

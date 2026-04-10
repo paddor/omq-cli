@@ -127,7 +127,7 @@ check "pub -E array received as jsonl" '["foo","bar"]' "$(cat $TMPDIR/pubsub_jso
 
 echo "PUB/SUB eval pipe:"
 U=$(ipc)
-$OMQ sub -b $U -e '$F.first' -J -n 1 $T > $TMPDIR/pubsub_evalpipe_out.txt 2>>"$STDERR_LOG" &
+$OMQ sub -b $U -e 'it.first' -J -n 1 $T > $TMPDIR/pubsub_evalpipe_out.txt 2>>"$STDERR_LOG" &
 $OMQ pub -c $U -E '%w(foo bar)' $T 2>>"$STDERR_LOG"
 wait
 check "pub -E to sub -e extracts first part" '["foo"]' "$(cat $TMPDIR/pubsub_evalpipe_out.txt)"
@@ -154,7 +154,7 @@ check "ipc abstract namespace works" "abstract" "$(cat $TMPDIR/abstract_out.txt)
 
 echo "Ruby eval:"
 U=$(ipc)
-$OMQ rep -b $U -e '$F.map(&:upcase)' -n 1 $T > /dev/null 2>&1 &
+$OMQ rep -b $U -e 'it.map(&:upcase)' -n 1 $T > /dev/null 2>&1 &
 EVAL_OUT=$(echo 'hello' | $OMQ req -c $U -n 1 $T 2>>"$STDERR_LOG")
 wait
 check "rep -e upcases reply" "HELLO" "$EVAL_OUT"
@@ -173,7 +173,7 @@ check "rep -e nil sends empty reply" "" "$EVAL_NIL_OUT"
 echo "Ruby eval on send:"
 U=$(ipc)
 $OMQ pull -b $U -n 1 $T > $TMPDIR/eval_send_out.txt 2>>"$STDERR_LOG" &
-echo 'hello' | $OMQ push -c $U -E '$F.map(&:upcase)' $T 2>>"$STDERR_LOG"
+echo 'hello' | $OMQ push -c $U -E 'it.map(&:upcase)' $T 2>>"$STDERR_LOG"
 wait
 check "push -E transforms before send" "HELLO" "$(cat $TMPDIR/eval_send_out.txt)"
 
@@ -182,7 +182,7 @@ check "push -E transforms before send" "HELLO" "$(cat $TMPDIR/eval_send_out.txt)
 echo "Ruby eval filter:"
 U=$(ipc)
 $OMQ pull -b $U -n 1 $T > $TMPDIR/eval_filter_out.txt 2>>"$STDERR_LOG" &
-printf 'skip\nkeep\n' | $OMQ push -c $U -E '$F.first == "skip" ? nil : $F' $T 2>>"$STDERR_LOG"
+printf 'skip\nkeep\n' | $OMQ push -c $U -E 'it.first == "skip" ? nil : it' $T 2>>"$STDERR_LOG"
 wait
 check "push -E nil skips message" "keep" "$(cat $TMPDIR/eval_filter_out.txt)"
 
@@ -258,7 +258,7 @@ check "-E sets \$_ to first frame" "HELLO" "$(cat $TMPDIR/eval_line_out.txt)"
 echo "Eval nil output:"
 U=$(ipc)
 $OMQ pull -b $U -n 1 $T > $TMPDIR/eval_nil_out.txt 2>>"$STDERR_LOG" &
-printf 'skip\nkeep\n' | $OMQ push -c $U -E '$F.first == "skip" ? nil : $F' $T 2>>"$STDERR_LOG"
+printf 'skip\nkeep\n' | $OMQ push -c $U -E 'it.first == "skip" ? nil : it' $T 2>>"$STDERR_LOG"
 wait
 check "-E nil produces no output" "1" "$(wc -l < $TMPDIR/eval_nil_out.txt | tr -d ' ')"
 
@@ -285,7 +285,7 @@ check "quantized interval keeps cadence" "yes" "$TIMING_OK"
 echo "Interval with send-eval + stdin:"
 U=$(ipc)
 $OMQ pull -b $U -n 3 $T > $TMPDIR/interval_eval_stdin_out.txt 2>>"$STDERR_LOG" &
-seq 3 | $OMQ push -c $U -E '$F << "foo"' -i 0.1 $T 2>>"$STDERR_LOG"
+seq 3 | $OMQ push -c $U -E 'it << "foo"' -i 0.1 $T 2>>"$STDERR_LOG"
 wait
 check "interval -E with stdin appends to each line" "3" "$(wc -l < $TMPDIR/interval_eval_stdin_out.txt | tr -d ' ')"
 check "interval -E with stdin content" "1	foo" "$(head -1 $TMPDIR/interval_eval_stdin_out.txt)"
@@ -392,7 +392,7 @@ check "script OMQ.incoming transforms incoming" "HELLO" "$(cat $TMPDIR/script_re
 
 echo "Script OMQ.outgoing:"
 cat > $TMPDIR/send_script.rb <<'RUBY'
-OMQ.outgoing { $F.map(&:upcase) }
+OMQ.outgoing { it.map(&:upcase) }
 RUBY
 U=$(ipc)
 $OMQ pull -b $U -n 1 $T > $TMPDIR/script_send_out.txt 2>>"$STDERR_LOG" &
@@ -454,7 +454,7 @@ OMQ.incoming { |msg| msg.map(&:downcase) }
 RUBY
 U=$(ipc)
 $OMQ rep -b $U --echo -n 1 $T > /dev/null 2>&1 &
-OVERRIDE_OUT=$(echo 'Hello' | $OMQ req -c $U -r $TMPDIR/override_script.rb -E '$F.map(&:upcase)' -n 1 $T 2>>"$STDERR_LOG")
+OVERRIDE_OUT=$(echo 'Hello' | $OMQ req -c $U -r $TMPDIR/override_script.rb -E 'it.map(&:upcase)' -n 1 $T 2>>"$STDERR_LOG")
 wait
 # CLI -E overrides script outgoing: upcases -> "HELLO", rep echoes, script incoming downcases -> "hello"
 check "CLI -E overrides script OMQ.outgoing" "hello" "$OVERRIDE_OUT"
@@ -477,13 +477,13 @@ check "at_exit sees accumulated closure state" "a,b,c" "$(cat $TMPDIR/teardown_l
 # -- Validation: -e on send-only socket errors -----------------------
 
 echo "Validation:"
-$OMQ push -c tcp://x:1 -e '$F' 2>$TMPDIR/val_err.txt && EXITCODE=0 || EXITCODE=$?
+$OMQ push -c tcp://x:1 -e 'it' 2>$TMPDIR/val_err.txt && EXITCODE=0 || EXITCODE=$?
 check "-e on send-only socket errors" "1" "$EXITCODE"
 
-$OMQ pull -b tcp://:1 -E '$F' 2>$TMPDIR/val_err2.txt && EXITCODE=0 || EXITCODE=$?
+$OMQ pull -b tcp://:1 -E 'it' 2>$TMPDIR/val_err2.txt && EXITCODE=0 || EXITCODE=$?
 check "-E on recv-only socket errors" "1" "$EXITCODE"
 
-$OMQ router -c tcp://x:1 -E '$F' --target peer1 2>$TMPDIR/val_err3.txt && EXITCODE=0 || EXITCODE=$?
+$OMQ router -c tcp://x:1 -E 'it' --target peer1 2>$TMPDIR/val_err3.txt && EXITCODE=0 || EXITCODE=$?
 check "-E + --target errors" "1" "$EXITCODE"
 
 # -- REQ: -E transforms outgoing, -e transforms reply ---------------
@@ -491,7 +491,7 @@ check "-E + --target errors" "1" "$EXITCODE"
 echo "REQ -E and -e:"
 U=$(ipc)
 $OMQ rep -b $U --echo -n 1 $T > /dev/null 2>&1 &
-REQ_SPLIT_OUT=$(echo 'hello' | $OMQ req -c $U -E '$F.map(&:upcase)' -e '$F.map(&:reverse)' -n 1 $T 2>>"$STDERR_LOG")
+REQ_SPLIT_OUT=$(echo 'hello' | $OMQ req -c $U -E 'it.map(&:upcase)' -e 'it.map(&:reverse)' -n 1 $T 2>>"$STDERR_LOG")
 wait
 # -E upcases "hello" -> "HELLO", rep echoes "HELLO", -e reverses -> "OLLEH"
 check "req -E sends transformed, -e transforms reply" "OLLEH" "$REQ_SPLIT_OUT"
@@ -501,7 +501,7 @@ check "req -E sends transformed, -e transforms reply" "OLLEH" "$REQ_SPLIT_OUT"
 echo "Pipe -e:"
 $OMQ push -b ipc://@omq_pipe_in_$$ -D "piped" -d 0.5 -t 3 2>>"$STDERR_LOG" &
 $OMQ pull -b ipc://@omq_pipe_out_$$ -n 1 -t 3 > $TMPDIR/pipe_e_out.txt 2>>"$STDERR_LOG" &
-$OMQ pipe -c ipc://@omq_pipe_in_$$ -c ipc://@omq_pipe_out_$$ -e '$F.map(&:upcase)' -n 1 -t 3 2>>"$STDERR_LOG" &
+$OMQ pipe -c ipc://@omq_pipe_in_$$ -c ipc://@omq_pipe_out_$$ -e 'it.map(&:upcase)' -n 1 -t 3 2>>"$STDERR_LOG" &
 wait
 check "pipe -e transforms in pipeline" "PIPED" "$(cat $TMPDIR/pipe_e_out.txt)"
 
@@ -512,7 +512,7 @@ $OMQ push -b ipc://@omq_fanin_a_$$ -D "from_a" -d 0.5 -t 3 2>>"$STDERR_LOG" &
 $OMQ push -b ipc://@omq_fanin_b_$$ -D "from_b" -d 0.5 -t 3 2>>"$STDERR_LOG" &
 $OMQ pull -b ipc://@omq_fanin_out_$$ -n 2 -t 3 > $TMPDIR/fanin_out.txt 2>>"$STDERR_LOG" &
 $OMQ pipe --in -c ipc://@omq_fanin_a_$$ -c ipc://@omq_fanin_b_$$ \
-         --out -c ipc://@omq_fanin_out_$$ -e '$F.map(&:upcase)' -n 2 -t 3 2>>"$STDERR_LOG" &
+         --out -c ipc://@omq_fanin_out_$$ -e 'it.map(&:upcase)' -n 2 -t 3 2>>"$STDERR_LOG" &
 wait
 FANIN_LINES=$(wc -l < $TMPDIR/fanin_out.txt | tr -d ' ')
 FANIN_CONTENT=$(sort $TMPDIR/fanin_out.txt | tr '\n' ',')
@@ -526,7 +526,7 @@ $OMQ pull -b ipc://@omq_fanout_a_$$ -n 1 -t 3 > $TMPDIR/fanout_a.txt 2>>"$STDERR
 $OMQ pull -b ipc://@omq_fanout_b_$$ -n 1 -t 3 > $TMPDIR/fanout_b.txt 2>>"$STDERR_LOG" &
 $OMQ pipe --in -b ipc://@omq_fanout_in_$$ \
          --out -c ipc://@omq_fanout_a_$$ -c ipc://@omq_fanout_b_$$ \
-         -e '$F.map(&:upcase)' -n 2 -t 3 2>>"$STDERR_LOG" &
+         -e 'it.map(&:upcase)' -n 2 -t 3 2>>"$STDERR_LOG" &
 sleep 0.3
 printf 'msg1\nmsg2\n' | $OMQ push -c ipc://@omq_fanout_in_$$ -t 3 2>>"$STDERR_LOG"
 wait

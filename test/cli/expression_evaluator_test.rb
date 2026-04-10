@@ -5,13 +5,13 @@ require_relative "support"
 describe "eval_send_expr" do
   before do
     @runner = OMQ::CLI::PushRunner.new(
-      make_config(type_name: "push", send_expr: "[$_, *$F]"),
+      make_config(type_name: "push", send_expr: "[$_, *it]"),
       OMQ::PUSH
     )
     @runner.send(:compile_expr)
   end
 
-  it "sets $F to message parts" do
+  it "sets it to message parts" do
     result = @runner.send(:eval_send_expr, ["hello", "world"])
     assert_equal ["hello", "hello", "world"], result
   end
@@ -46,7 +46,7 @@ describe "eval_send_expr" do
       push = OMQ::PUSH.bind("inproc://eval-self-send")
       pull = OMQ::PULL.connect("inproc://eval-self-send")
       runner = OMQ::CLI::PushRunner.new(
-        make_config(type_name: "push", send_expr: "self << $F"),
+        make_config(type_name: "push", send_expr: "self << it"),
         OMQ::PUSH
       )
       runner.send(:compile_expr)
@@ -72,7 +72,7 @@ end
 describe "eval_recv_expr" do
   it "transforms incoming messages" do
     runner = OMQ::CLI::PullRunner.new(
-      make_config(type_name: "pull", recv_expr: "$F.map(&:upcase)"),
+      make_config(type_name: "pull", recv_expr: "it.map(&:upcase)"),
       OMQ::PULL
     )
     runner.send(:compile_expr)
@@ -114,7 +114,7 @@ end
 describe "independent send and recv eval" do
   it "compiles send and recv procs independently" do
     runner = OMQ::CLI::ReqRunner.new(
-      make_config(type_name: "req", send_expr: "$F.map(&:upcase)", recv_expr: "$F.map(&:reverse)"),
+      make_config(type_name: "req", send_expr: "it.map(&:upcase)", recv_expr: "it.map(&:reverse)"),
       OMQ::REQ
     )
     runner.send(:compile_expr)
@@ -128,7 +128,7 @@ describe "independent send and recv eval" do
 
   it "allows send_expr without recv_expr" do
     runner = OMQ::CLI::ReqRunner.new(
-      make_config(type_name: "req", send_expr: "$F.map(&:upcase)"),
+      make_config(type_name: "req", send_expr: "it.map(&:upcase)"),
       OMQ::REQ
     )
     runner.send(:compile_expr)
@@ -142,7 +142,7 @@ describe "independent send and recv eval" do
 
   it "allows recv_expr without send_expr" do
     runner = OMQ::CLI::ReqRunner.new(
-      make_config(type_name: "req", recv_expr: "$F.map(&:upcase)"),
+      make_config(type_name: "req", recv_expr: "it.map(&:upcase)"),
       OMQ::REQ
     )
     runner.send(:compile_expr)
@@ -159,7 +159,7 @@ end
 describe "BEGIN/END blocks per direction" do
   it "compiles BEGIN/END for send_expr" do
     runner = OMQ::CLI::PushRunner.new(
-      make_config(type_name: "push", send_expr: 'BEGIN{ @count = 0 } @count += 1; $F END{ }'),
+      make_config(type_name: "push", send_expr: 'BEGIN{ @count = 0 } @count += 1; it END{ }'),
       OMQ::PUSH
     )
     runner.send(:compile_expr)
@@ -180,8 +180,8 @@ describe "BEGIN/END blocks per direction" do
   it "compiles BEGIN/END independently for both directions" do
     runner = OMQ::CLI::PairRunner.new(
       make_config(type_name: "pair",
-                  send_expr: 'BEGIN{ @send_count = 0 } @send_count += 1; $F',
-                  recv_expr: 'BEGIN{ @recv_count = 0 } @recv_count += 1; $F'),
+                  send_expr: 'BEGIN{ @send_count = 0 } @send_count += 1; it',
+                  recv_expr: 'BEGIN{ @recv_count = 0 } @recv_count += 1; it'),
       OMQ::PAIR
     )
     runner.send(:compile_expr)
@@ -200,18 +200,18 @@ describe "OMQ.outgoing / OMQ.incoming registration" do
   end
 
   it "registers an outgoing proc" do
-    OMQ.outgoing { $F.map(&:upcase) }
+    OMQ.outgoing { it.map(&:upcase) }
     refute_nil OMQ.outgoing_proc
   end
 
   it "registers an incoming proc" do
-    OMQ.incoming { $F.map(&:downcase) }
+    OMQ.incoming { it.map(&:downcase) }
     refute_nil OMQ.incoming_proc
   end
 
   it "picks up registered procs during compile_expr" do
-    OMQ.outgoing { $F.map(&:upcase) }
-    OMQ.incoming { $F.map(&:reverse) }
+    OMQ.outgoing { it.map(&:upcase) }
+    OMQ.incoming { it.map(&:reverse) }
 
     runner = OMQ::CLI::ReqRunner.new(
       make_config(type_name: "req"),
@@ -237,7 +237,7 @@ describe "OMQ.outgoing / OMQ.incoming registration" do
   end
 
   it "uses registered proc when no CLI flag" do
-    OMQ.incoming { $F.map(&:upcase) }
+    OMQ.incoming { it.map(&:upcase) }
 
     runner = OMQ::CLI::PullRunner.new(
       make_config(type_name: "pull"),
@@ -250,7 +250,7 @@ describe "OMQ.outgoing / OMQ.incoming registration" do
   end
 
   it "registered outgoing works without incoming" do
-    OMQ.outgoing { $F.map(&:upcase) }
+    OMQ.outgoing { it.map(&:upcase) }
 
     runner = OMQ::CLI::ReqRunner.new(
       make_config(type_name: "req"),
@@ -263,10 +263,10 @@ describe "OMQ.outgoing / OMQ.incoming registration" do
   end
 
   it "mixes registered proc on one direction with CLI flag on the other" do
-    OMQ.incoming { $F.map(&:downcase) }
+    OMQ.incoming { it.map(&:downcase) }
 
     runner = OMQ::CLI::ReqRunner.new(
-      make_config(type_name: "req", send_expr: "$F.map(&:upcase)"),
+      make_config(type_name: "req", send_expr: "it.map(&:upcase)"),
       OMQ::REQ
     )
     runner.send(:compile_expr)
@@ -297,29 +297,29 @@ describe "extract_blocks" do
 
   it "handles nested braces" do
     expr, begin_body, end_body = ev.send(:extract_blocks,
-      'BEGIN{ @h = {} } $F END{ @h.each { |k,v| puts k } }')
+      'BEGIN{ @h = {} } it END{ @h.each { |k,v| puts k } }')
     assert_equal " @h = {} ", begin_body
     assert_equal " @h.each { |k,v| puts k } ", end_body
-    assert_equal "$F", expr.strip
+    assert_equal "it", expr.strip
   end
 
   it "returns nil for missing blocks" do
-    expr, begin_body, end_body = ev.send(:extract_blocks, '$F')
+    expr, begin_body, end_body = ev.send(:extract_blocks, 'it')
     assert_nil begin_body
     assert_nil end_body
-    assert_equal "$F", expr
+    assert_equal "it", expr
   end
 
   it "handles BEGIN only" do
     _, begin_body, end_body = ev.send(:extract_blocks,
-      'BEGIN{ @x = 1 } $F')
+      'BEGIN{ @x = 1 } it')
     assert_equal " @x = 1 ", begin_body
     assert_nil end_body
   end
 
   it "handles END only" do
     _, begin_body, end_body = ev.send(:extract_blocks,
-      '$F END{ puts "done" }')
+      'it END{ puts "done" }')
     assert_nil begin_body
     assert_equal ' puts "done" ', end_body
   end

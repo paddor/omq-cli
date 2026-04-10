@@ -25,7 +25,7 @@ omq rep -b tcp://:5555 --echo
 echo "hello" | omq req -c tcp://localhost:5555
 
 # Upcase server — -e evals Ruby on each incoming message
-omq rep -b tcp://:5555 -e '$F.map(&:upcase)'
+omq rep -b tcp://:5555 -e 'it.map(&:upcase)'
 ```
 
 ```
@@ -82,7 +82,7 @@ omq pull -b tcp://:5557
 omq rep -b tcp://:5555 --echo
 
 # upcase server
-omq rep -b tcp://:5555 -e '$F.map(&:upcase)'
+omq rep -b tcp://:5555 -e 'it.map(&:upcase)'
 
 # client
 echo "hello" | omq req -c tcp://localhost:5555
@@ -125,7 +125,7 @@ omq router -b tcp://:5555 -E '["worker-1", $_.upcase]'
 Pipe creates an internal PULL → eval → PUSH pipeline:
 
 ```sh
-omq pipe -c ipc://@work -c ipc://@sink -e '$F.map(&:upcase)'
+omq pipe -c ipc://@work -c ipc://@sink -e 'it.map(&:upcase)'
 
 # with Ractor workers for CPU parallelism
 omq pipe -c ipc://@work -c ipc://@sink -P 4 -r./fib.rb -e 'fib(Integer($_)).to_s'
@@ -139,12 +139,12 @@ Both must use `-c`.
 `-e` (alias `--recv-eval`) runs a Ruby expression for each **incoming** message.
 `-E` (alias `--send-eval`) runs a Ruby expression for each **outgoing** message.
 
-### Globals
+### Variables
 
 | Variable | Value |
 |----------|-------|
-| `$F` | Message parts (`Array<String>`) |
-| `$_` | First part (`$F.first`) — works in inline expressions |
+| `it` | Message parts (`Array<String>`) — Ruby's default block variable |
+| `$_` | First part (`it.first`) — regexps match against this |
 
 ### Return value
 
@@ -159,10 +159,10 @@ Both must use `-c`.
 
 ```sh
 # skip messages matching a pattern
-omq pull -b tcp://:5557 -e 'next if /^#/; $F'
+omq pull -b tcp://:5557 -e 'next if /^#/; it'
 
 # stop on "quit"
-omq pull -b tcp://:5557 -e 'break if /quit/; $F'
+omq pull -b tcp://:5557 -e 'break if /quit/; it'
 ```
 
 ### BEGIN/END blocks
@@ -191,23 +191,23 @@ Local variables won't work to share state between the blocks. Use `@ivars` inste
 
 ```sh
 # upcase echo server
-omq rep -b tcp://:5555 -e '$F.map(&:upcase)'
+omq rep -b tcp://:5555 -e 'it.map(&:upcase)'
 
 # transform before sending
-echo hello | omq push -c tcp://localhost:5557 -E '$F.map(&:upcase)'
+echo hello | omq push -c tcp://localhost:5557 -E 'it.map(&:upcase)'
 
 # filter incoming
-omq pull -b tcp://:5557 -e '$F.first.include?("error") ? $F : nil'
+omq pull -b tcp://:5557 -e 'it.first.include?("error") ? it : nil'
 
 # REQ: different transforms per direction
 echo hello | omq req -c tcp://localhost:5555 \
-  -E '$F.map(&:upcase)' -e '$F.map(&:reverse)'
+  -E 'it.map(&:upcase)' -e 'it.map(&:reverse)'
 
 # generate messages without stdin
 omq pub -c tcp://localhost:5556 -E 'Time.now.to_s' -i 1
 
 # use gems
-omq sub -c tcp://localhost:5556 -s "" -rjson -e 'JSON.parse($F.first)["temperature"]'
+omq sub -c tcp://localhost:5556 -s "" -rjson -e 'JSON.parse(it.first)["temperature"]'
 ```
 
 ## Script handlers (-r)
@@ -235,7 +235,7 @@ omq req -c tcp://localhost:5555 -r./handler.rb
 | `OMQ.outgoing { |msg| ... }` | Register outgoing message transform |
 | `OMQ.incoming { |msg| ... }` | Register incoming message transform |
 
-- use explicit block variable (like `msg`) instead of `$F`/`$_`
+- use explicit block variable (like `msg`) or `it`
 - Setup: use local variables and closures at the top of the script
 - Teardown: use Ruby's `at_exit { ... }`
 - CLI flags (`-e`/`-E`) override script-registered handlers for the same direction
@@ -243,7 +243,7 @@ omq req -c tcp://localhost:5555 -r./handler.rb
 
 ```sh
 # handler.rb registers recv_eval, CLI adds send_eval
-omq req -c tcp://localhost:5555 -r./handler.rb -E '$F.map(&:upcase)'
+omq req -c tcp://localhost:5555 -r./handler.rb -E 'it.map(&:upcase)'
 ```
 
 ### Script handler examples
@@ -427,16 +427,16 @@ Pipe creates an in-process PULL → eval → PUSH pipeline:
 
 ```sh
 # basic pipe (positional: first = input, second = output)
-omq pipe -c ipc://@work -c ipc://@sink -e '$F.map(&:upcase)'
+omq pipe -c ipc://@work -c ipc://@sink -e 'it.map(&:upcase)'
 
 # parallel Ractor workers (default: all CPUs)
 omq pipe -c ipc://@work -c ipc://@sink -P -r./fib.rb -e 'fib(Integer($_)).to_s'
 
 # fixed number of workers
-omq pipe -c ipc://@work -c ipc://@sink -P 4 -e '$F.map(&:upcase)'
+omq pipe -c ipc://@work -c ipc://@sink -P 4 -e 'it.map(&:upcase)'
 
 # exit when producer disconnects
-omq pipe -c ipc://@work -c ipc://@sink --transient -e '$F.map(&:upcase)'
+omq pipe -c ipc://@work -c ipc://@sink --transient -e 'it.map(&:upcase)'
 ```
 
 ### Multi-peer pipe with `--in`/`--out`
@@ -446,16 +446,16 @@ Use `--in` and `--out` to attach multiple endpoints per side. These are modal sw
 
 ```sh
 # fan-in: 2 producers → 1 consumer
-omq pipe --in -c ipc://@work1 -c ipc://@work2 --out -c ipc://@sink -e '$F'
+omq pipe --in -c ipc://@work1 -c ipc://@work2 --out -c ipc://@sink -e 'it'
 
 # fan-out: 1 producer → 2 consumers (round-robin)
-omq pipe --in -b tcp://:5555 --out -c ipc://@sink1 -c ipc://@sink2 -e '$F'
+omq pipe --in -b tcp://:5555 --out -c ipc://@sink1 -c ipc://@sink2 -e 'it'
 
 # bind on input, connect on output
-omq pipe --in -b tcp://:5555 -b tcp://:5556 --out -c tcp://sink:5557 -e '$F'
+omq pipe --in -b tcp://:5555 -b tcp://:5556 --out -c tcp://sink:5557 -e 'it'
 
 # parallel workers with fan-in (all must be -c)
-omq pipe --in -c ipc://@a -c ipc://@b --out -c ipc://@sink -P 4 -e '$F'
+omq pipe --in -c ipc://@a -c ipc://@b --out -c ipc://@sink -P 4 -e 'it'
 ```
 
 `-P`/`--parallel` requires all endpoints to be `--connect`. In parallel mode, each Ractor worker
@@ -467,7 +467,7 @@ gets its own PULL/PUSH pair connecting to all endpoints.
 
 ```sh
 # worker exits when producer is done
-omq pipe -c ipc://@work -c ipc://@sink --transient -e '$F.map(&:upcase)'
+omq pipe -c ipc://@work -c ipc://@sink --transient -e 'it.map(&:upcase)'
 
 # sink exits when all workers disconnect
 omq pull -b tcp://:5557 --transient
