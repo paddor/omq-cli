@@ -500,6 +500,15 @@ module OMQ
         if type_name == "pipe"
           has_in_out = opts[:in_endpoints].any? || opts[:out_endpoints].any?
           if has_in_out
+            # Promote bare endpoints into the missing side:
+            # `pipe -c SRC --out -c DST` → bare SRC becomes --in
+            if opts[:in_endpoints].empty? && opts[:endpoints].any?
+              opts[:in_endpoints] = opts[:endpoints]
+              opts[:endpoints]    = []
+            elsif opts[:out_endpoints].empty? && opts[:endpoints].any?
+              opts[:out_endpoints] = opts[:endpoints]
+              opts[:endpoints]     = []
+            end
             abort "pipe --in requires at least one endpoint"             if opts[:in_endpoints].empty?
             abort "pipe --out requires at least one endpoint"            if opts[:out_endpoints].empty?
             abort "pipe: don't mix --in/--out with bare -b/-c endpoints" unless opts[:endpoints].empty?

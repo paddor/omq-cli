@@ -33,6 +33,10 @@
   through (coerced to empty frames by the socket layer). `decompress`
   skips empty frames instead of feeding them to LZ4.
 
+- **Pipe `--out` without `--in` promotes bare endpoints.** Bare `-c`/`-b`
+  before `--out` are now treated as `--in` endpoints (and vice versa),
+  fixing `pipe -c SRC --out -c DST` which previously errored.
+
 ## 0.11.4 — 2026-04-10
 
 ### Fixed
