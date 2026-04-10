@@ -61,7 +61,7 @@ describe "REQ -> mixed-backend REPs" do
         client.recv_timeout = 3
         client.connect(pure_url)
         client.connect(ffi_url)
-        client.peer_connected.wait
+        sleep 0.01 until client.connection_count >= 2
 
         n_reqs.times.map do |i|
           client.send(["req-#{i}"])
@@ -97,7 +97,7 @@ describe "REQ -> mixed-backend REPs" do
         client.recv_timeout = 3
         client.connect(pure_url)
         client.connect(ffi_url)
-        client.peer_connected.wait
+        sleep 0.01 until client.connection_count >= 2
 
         n_reqs.times.map do |i|
           client.send(["req-#{i}"])

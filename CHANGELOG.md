@@ -21,6 +21,11 @@
   `ipc://@work` and `ipc://@sink` (Linux abstract namespace). Only
   triggers when the value starts with `@` and has no `://` scheme.
 
+### Fixed
+
+- **Flaky FFI backend tests.** Wait for both REP peers to be connected
+  before round-robining requests, instead of only waiting for the first.
+
 ## 0.11.4 — 2026-04-10
 
 ### Fixed
