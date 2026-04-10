@@ -75,24 +75,24 @@ module OMQ
           +------+         +------+         +------+
 
           # terminal 1: producer
-          echo -e "hello\nworld" | omq push --bind ipc://@work
+          echo -e "hello\nworld" | omq push -b@work
 
           # terminal 2: worker -- uppercase each message
-          omq pipe -c ipc://@work -c ipc://@sink -e 'it.map(&:upcase)'
+          omq pipe -c@work -c@sink -e 'it.map(&:upcase)'
           # terminal 3: collector
-          omq pull --bind ipc://@sink
+          omq pull -b@sink
 
           # 4 Ractor workers in a single process (-P)
-          omq pipe -c ipc://@work -c ipc://@sink -P4 -r./fib -e 'fib(it.first.to_i).to_s'
+          omq pipe -c@work -c@sink -P4 -r./fib -e 'fib(it.first.to_i).to_s'
 
           # exit when producer disconnects (--transient)
-          omq pipe -c ipc://@work -c ipc://@sink --transient -e 'it.map(&:upcase)'
+          omq pipe -c@work -c@sink --transient -e 'it.map(&:upcase)'
 
           # fan-in: multiple sources -> one sink
-          omq pipe --in -cipc://@work1 -cipc://@work2 --out -cipc://@sink -e'it.map(&:upcase)'
+          omq pipe --in -c@work1 -c@work2 --out -c@sink -e 'it.map(&:upcase)'
 
           # fan-out: one source -> multiple sinks (round-robin)
-          omq pipe --in -b tcp://:5555 --out -c ipc://@sink1 -c ipc://@sink2 -e 'it'
+          omq pipe --in -b tcp://:5555 --out -c@sink1 -c@sink2 -e 'it'
 
         -- CLIENT / SERVER (draft) ----------------------------------
 
@@ -281,6 +281,7 @@ module OMQ
 
           o.separator "Connection:"
           o.on("-c", "--connect URL", "Connect to endpoint (repeatable)") { |v|
+            v = expand_endpoint(v)
             ep = Endpoint.new(v, false)
             case pipe_side
             when :in
@@ -293,6 +294,7 @@ module OMQ
             end
           }
           o.on("-b", "--bind URL", "Bind to endpoint (repeatable)") { |v|
+            v = expand_endpoint(v)
             ep = Endpoint.new(v, true)
             case pipe_side
             when :in
@@ -543,6 +545,14 @@ module OMQ
                    end
         dups = all_urls.tally.select { |_, n| n > 1 }.keys
         abort "duplicate endpoint: #{dups.first}" if dups.any?
+      end
+
+
+      # Expands shorthand `@name` to `ipc://@name` (Linux abstract namespace).
+      # Only triggers when the value starts with `@` and has no `://` scheme.
+      #
+      def expand_endpoint(url)
+        url.start_with?("@") && !url.include?("://") ? "ipc://#{url}" : url
       end
 
 

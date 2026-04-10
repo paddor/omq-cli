@@ -15,6 +15,12 @@
   A single parameter receives the whole parts array. Use `|(a, b)|` for
   destructuring.
 
+### Added
+
+- **`@name` endpoint shorthand.** `-c@work` and `-b@sink` expand to
+  `ipc://@work` and `ipc://@sink` (Linux abstract namespace). Only
+  triggers when the value starts with `@` and has no `://` scheme.
+
 ## 0.11.4 — 2026-04-10
 
 ### Fixed

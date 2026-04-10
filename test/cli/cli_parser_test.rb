@@ -289,6 +289,33 @@ describe "OMQ::CLI::CliParser.parse" do
     assert_equal ["tcp://#{loopback}:1", "tcp://#{loopback}:2"], opts[:binds]
   end
 
+  it "expands @name to ipc://@name for connects" do
+    opts = OMQ::CLI::CliParser.parse(["push", "-c", "@work"])
+    assert_equal "ipc://@work", opts[:endpoints].first.url
+    assert_equal false, opts[:endpoints].first.bind?
+  end
+
+  it "expands @name to ipc://@name for binds" do
+    opts = OMQ::CLI::CliParser.parse(["pull", "-b", "@sink"])
+    assert_equal "ipc://@sink", opts[:endpoints].first.url
+    assert_equal true, opts[:endpoints].first.bind?
+  end
+
+  it "does not expand explicit ipc://@name" do
+    opts = OMQ::CLI::CliParser.parse(["push", "-c", "ipc://@work"])
+    assert_equal "ipc://@work", opts[:endpoints].first.url
+  end
+
+  it "does not expand tcp:// URLs" do
+    opts = OMQ::CLI::CliParser.parse(["push", "-c", "tcp://localhost:5555"])
+    assert_equal "tcp://localhost:5555", opts[:endpoints].first.url
+  end
+
+  it "does not expand filesystem paths" do
+    opts = OMQ::CLI::CliParser.parse(["push", "-c", "/tmp/sock"])
+    assert_equal "/tmp/sock", opts[:endpoints].first.url
+  end
+
   it "expands tcp://*:PORT to 0.0.0.0 for binds" do
     opts = OMQ::CLI::CliParser.parse(["pull", "-b", "tcp://*:1234"])
     assert_equal ["tcp://0.0.0.0:1234"], opts[:binds]

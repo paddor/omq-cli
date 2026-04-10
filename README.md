@@ -44,7 +44,7 @@ Every socket needs at least one `--bind` or `--connect`:
 omq pull --bind tcp://:5557          # listen on port 5557
 omq push --connect tcp://host:5557   # connect to host
 omq pull -b ipc:///tmp/feed.sock     # IPC (unix socket)
-omq push -c ipc://@abstract          # IPC (abstract namespace, Linux)
+omq push -c@work                     # IPC abstract namespace (@name → ipc://@name)
 ```
 
 Multiple endpoints are allowed — `omq pull -b tcp://:5557 -b tcp://:5558` binds both.
@@ -125,10 +125,10 @@ omq router -b tcp://:5555 -E '["worker-1", it.first.upcase]'
 Pipe creates an internal PULL → eval → PUSH pipeline:
 
 ```sh
-omq pipe -c ipc://@work -c ipc://@sink -e 'it.map(&:upcase)'
+omq pipe -c@work -c@sink -e 'it.map(&:upcase)'
 
 # with Ractor workers for CPU parallelism
-omq pipe -c ipc://@work -c ipc://@sink -P 4 -r./fib.rb -e 'fib(Integer(it.first)).to_s'
+omq pipe -c@work -c@sink -P 4 -r./fib.rb -e 'fib(Integer(it.first)).to_s'
 ```
 
 The first endpoint is the pull-side (input), the second is the push-side (output).
@@ -439,16 +439,16 @@ Pipe creates an in-process PULL → eval → PUSH pipeline:
 
 ```sh
 # basic pipe (positional: first = input, second = output)
-omq pipe -c ipc://@work -c ipc://@sink -e 'it.map(&:upcase)'
+omq pipe -c@work -c@sink -e 'it.map(&:upcase)'
 
 # parallel Ractor workers (default: all CPUs)
-omq pipe -c ipc://@work -c ipc://@sink -P -r./fib.rb -e 'fib(Integer(it.first)).to_s'
+omq pipe -c@work -c@sink -P -r./fib.rb -e 'fib(Integer(it.first)).to_s'
 
 # fixed number of workers
-omq pipe -c ipc://@work -c ipc://@sink -P 4 -e 'it.map(&:upcase)'
+omq pipe -c@work -c@sink -P 4 -e 'it.map(&:upcase)'
 
 # exit when producer disconnects
-omq pipe -c ipc://@work -c ipc://@sink --transient -e 'it.map(&:upcase)'
+omq pipe -c@work -c@sink --transient -e 'it.map(&:upcase)'
 ```
 
 ### Multi-peer pipe with `--in`/`--out`
@@ -458,16 +458,16 @@ Use `--in` and `--out` to attach multiple endpoints per side. These are modal sw
 
 ```sh
 # fan-in: 2 producers → 1 consumer
-omq pipe --in -c ipc://@work1 -c ipc://@work2 --out -c ipc://@sink -e 'it'
+omq pipe --in -c@work1 -c@work2 --out -c@sink -e 'it'
 
 # fan-out: 1 producer → 2 consumers (round-robin)
-omq pipe --in -b tcp://:5555 --out -c ipc://@sink1 -c ipc://@sink2 -e 'it'
+omq pipe --in -b tcp://:5555 --out -c@sink1 -c@sink2 -e 'it'
 
 # bind on input, connect on output
 omq pipe --in -b tcp://:5555 -b tcp://:5556 --out -c tcp://sink:5557 -e 'it'
 
 # parallel workers with fan-in (all must be -c)
-omq pipe --in -c ipc://@a -c ipc://@b --out -c ipc://@sink -P 4 -e 'it'
+omq pipe --in -c@a -c@b --out -c@sink -P 4 -e 'it'
 ```
 
 `-P`/`--parallel` requires all endpoints to be `--connect`. In parallel mode, each Ractor worker
@@ -479,7 +479,7 @@ gets its own PULL/PUSH pair connecting to all endpoints.
 
 ```sh
 # worker exits when producer is done
-omq pipe -c ipc://@work -c ipc://@sink --transient -e 'it.map(&:upcase)'
+omq pipe -c@work -c@sink --transient -e 'it.map(&:upcase)'
 
 # sink exits when all workers disconnect
 omq pull -b tcp://:5557 --transient
