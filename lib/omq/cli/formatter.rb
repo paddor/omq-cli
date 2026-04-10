@@ -122,7 +122,7 @@ module OMQ
         # string — otherwise joining with "|" would produce misleading
         # output like "|body" for REP/REQ-style envelopes where the first
         # wire frame is an empty delimiter.
-        return "[0B]" if bytes.empty?
+        return '""' if bytes.empty?
 
         sample    = bytes[0, 12]
         printable = sample.count("\x20-\x7e")

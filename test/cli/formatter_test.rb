@@ -243,14 +243,13 @@ describe OMQ::CLI::Formatter do
       assert_equal "(3B) foo", OMQ::CLI::Formatter.preview(["foo"])
     end
 
-    it "renders an empty frame as [0B] marker" do
-      assert_equal "(0B) [0B]", OMQ::CLI::Formatter.preview([""])
+    it "renders an empty frame as quoted empty string" do
+      assert_equal '(0B) ""', OMQ::CLI::Formatter.preview([""])
     end
 
     it "renders REP-style envelope with leading empty delimiter (no leading pipe)" do
       # ConnSendPump emits wire-level parts [empty_delimiter, body] for REP.
-      # Regression test: the empty delimiter must render as [0B], not "".
-      assert_equal "(1B) [0B]|1", OMQ::CLI::Formatter.preview(["", "1"])
+      assert_equal '(1B) ""|1', OMQ::CLI::Formatter.preview(["", "1"])
     end
 
     it "joins multiple frames with |" do

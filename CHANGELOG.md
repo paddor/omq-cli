@@ -26,6 +26,9 @@
 - **Flaky FFI backend tests.** Wait for both REP peers to be connected
   before round-robining requests, instead of only waiting for the first.
 
+- **Empty frames render as `""` in verbose output.** Previously shown as
+  `[0B]`.
+
 ## 0.11.4 — 2026-04-10
 
 ### Fixed
