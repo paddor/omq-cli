@@ -204,7 +204,7 @@ describe "pipe -P parallel execution" do
     work_url    = ipc_url("pipe-begin-work")
     results_url = ipc_url("pipe-begin-results")
 
-    expr = "BEGIN{ @s=0 } @s += Integer(it.first); nil END{ [$_=@s.to_s] }"
+    expr = "BEGIN{ @s=0 } @s += Integer(it.first); nil END{ [@s.to_s] }"
 
     cfg = make_config(
       type_name:     "pipe",

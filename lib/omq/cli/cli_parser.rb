@@ -10,10 +10,10 @@ module OMQ
       EXAMPLES = <<~'TEXT'
         -- Request / Reply ------------------------------------------
 
-          +-----+  "hello"    +-----+
+          +-----+   "hello"    +-----+
           | REQ |------------->| REP |
           |     |<-------------|     |
-          +-----+  "HELLO"    +-----+
+          +-----+   "HELLO"    +-----+
 
           # terminal 1: echo server
           omq rep --bind tcp://:5555 --recv-eval 'it.map(&:upcase)'
@@ -28,7 +28,7 @@ module OMQ
         -- Publish / Subscribe --------------------------------------
 
           +-----+  "weather.nyc 72F"  +-----+
-          | PUB |--------------------->| SUB | --subscribe "weather."
+          | PUB |-------------------->| SUB | --subscribe "weather."
           +-----+                     +-----+
 
           # terminal 1: subscriber (all topics by default)
@@ -39,25 +39,23 @@ module OMQ
 
         -- Periodic Publish -------------------------------------------
 
-          +-----+  "tick 1"    +-----+
+          +-----+   "tick 1"    +-----+
           | PUB |--(every 1s)-->| SUB |
-          +-----+              +-----+
+          +-----+               +-----+
 
           # terminal 1: subscriber
           omq sub --bind tcp://:5556
 
           # terminal 2: publish a tick every second (wall-clock aligned)
-          omq pub --connect tcp://localhost:5556 --delay 1 \
-            --data "tick" --interval 1
+          omq pub --connect tcp://localhost:5556 --delay 1 --data "tick" --interval 1
 
           # 5 ticks, then exit
-          omq pub --connect tcp://localhost:5556 --delay 1 \
-            --data "tick" --interval 1 --count 5
+          omq pub --connect tcp://localhost:5556 -d1 -D "tick" -i0.5 --count 5
 
         -- Pipeline -------------------------------------------------
 
           +------+           +------+
-          | PUSH |----------->| PULL |
+          | PUSH |---------->| PULL |
           +------+           +------+
 
           # terminal 1: worker
@@ -73,7 +71,7 @@ module OMQ
         -- Pipe (PULL -> eval -> PUSH) --------------------------------
 
           +------+         +------+         +------+
-          | PUSH |--------->| pipe |--------->| PULL |
+          | PUSH |-------->| pipe |-------->| PULL |
           +------+         +------+         +------+
 
           # terminal 1: producer
@@ -85,24 +83,23 @@ module OMQ
           omq pull --bind ipc://@sink
 
           # 4 Ractor workers in a single process (-P)
-          omq pipe -c ipc://@work -c ipc://@sink -P4 -r./fib -e 'fib(Integer($_)).to_s'
+          omq pipe -c ipc://@work -c ipc://@sink -P4 -r./fib -e 'fib(it.first.to_i).to_s'
 
           # exit when producer disconnects (--transient)
           omq pipe -c ipc://@work -c ipc://@sink --transient -e 'it.map(&:upcase)'
 
           # fan-in: multiple sources -> one sink
-          omq pipe --in -c ipc://@work1 -c ipc://@work2 \
-            --out -c ipc://@sink -e 'it.map(&:upcase)'
+          omq pipe --in -cipc://@work1 -cipc://@work2 --out -cipc://@sink -e'it.map(&:upcase)'
 
           # fan-out: one source -> multiple sinks (round-robin)
           omq pipe --in -b tcp://:5555 --out -c ipc://@sink1 -c ipc://@sink2 -e 'it'
 
         -- CLIENT / SERVER (draft) ----------------------------------
 
-          +--------+  "hello"   +--------+
+          +--------+   "hello"   +--------+
           | CLIENT |------------>| SERVER | --recv-eval 'it.map(&:upcase)'
           |        |<------------|        |
-          +--------+  "HELLO"   +--------+
+          +--------+   "HELLO"   +--------+
 
           # terminal 1: upcasing server
           omq server --bind tcp://:5555 --recv-eval 'it.map(&:upcase)'
@@ -127,9 +124,9 @@ module OMQ
 
         -- Compression ----------------------------------------------
 
-          # both sides must use --compress
+          # both sides must use --compress/-z
           omq pull --bind tcp://:5557 --compress &
-          echo "compressible data" | omq push --connect tcp://localhost:5557 --compress
+          echo "compressible data" | omq push --connect tcp://localhost:5557 -z
 
         -- CURVE Encryption -----------------------------------------
 
@@ -143,7 +140,7 @@ module OMQ
         -- ROUTER / DEALER ------------------------------------------
 
           +--------+          +--------+
-          | DEALER |---------->| ROUTER |
+          | DEALER |--------->| ROUTER |
           | id=w1  |          |        |
           +--------+          +--------+
 
@@ -164,17 +161,23 @@ module OMQ
           # require a local file, use its methods
           omq rep --bind tcp://:5555 --require ./transform.rb -e 'upcase_all(it)'
 
-          # next skips, break stops -- regexps match against $_
-          omq pull -b tcp://:5557 -e 'next if /^#/; break if /quit/; it'
+          # next skips, break stops
+          omq pull -b tcp://:5557 -e 'next if it.first =~ /^#/; break if it.first =~ /quit/; it'
 
           # BEGIN/END blocks (like awk) -- accumulate and summarize
-          omq pull -b tcp://:5557 -e 'BEGIN{@sum = 0} @sum += Integer($_); nil END{puts @sum}'
+          omq pull -b tcp://:5557 -e 'BEGIN{@sum = 0} @sum += it.first.to_i; nil END{puts @sum}'
 
           # transform outgoing messages
           echo hello | omq push -c tcp://localhost:5557 --send-eval 'it.map(&:upcase)'
 
           # REQ: transform request and reply independently
-          echo hello | omq req -c tcp://localhost:5555 -E 'it.map(&:upcase)' -e '$_'
+          echo hello | omq req -c tcp://localhost:5555 -E 'it.map(&:upcase)' -e 'it.first'
+
+          # block parameter: single param receives parts array
+          omq pull -b tcp://:5557 -e '|msg| msg.map(&:upcase)'
+
+          # destructure multipart messages with parens
+          omq pull -b tcp://:5557 -e '|(key, value)| "#{key}=#{value}"'
 
         -- Script Handlers (-r) ------------------------------------
 
@@ -373,8 +376,8 @@ module OMQ
           end
 
           o.separator "\nProcessing (-e = incoming, -E = outgoing):"
-          o.on("-e", "--recv-eval EXPR", "Eval Ruby for each incoming message (it = parts)") { |v| opts[:recv_expr] = v }
-          o.on("-E", "--send-eval EXPR", "Eval Ruby for each outgoing message (it = parts)") { |v| opts[:send_expr] = v }
+          o.on("-e", "--recv-eval EXPR", "Eval Ruby for each incoming message (it = parts, or |a, b|)") { |v| opts[:recv_expr] = v }
+          o.on("-E", "--send-eval EXPR", "Eval Ruby for each outgoing message (it = parts, or |a, b|)") { |v| opts[:send_expr] = v }
           o.on("-r", "--require LIB",  "Require lib/file in Async context; use '-' for stdin. Scripts can register OMQ.outgoing/incoming") { |v|
             require "omq" unless defined?(OMQ::VERSION)
             opts[:scripts] << (v == "-" ? :stdin : (v.start_with?("./", "../") ? File.expand_path(v) : v))

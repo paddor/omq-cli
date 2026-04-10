@@ -244,14 +244,14 @@ $OMQ push -c $U -E '"tick"' -i 0.1 -n 3 $T 2>>"$STDERR_LOG"
 wait
 check "interval -E generates messages without input" "3" "$(wc -l < $TMPDIR/interval_eval_out.txt | tr -d ' ')"
 
-# -- Eval sets $_ ---------------------------------------------------
+# -- Eval with it ---------------------------------------------------
 
-echo "Eval \$_:"
+echo "Eval it:"
 U=$(ipc)
 $OMQ pull -b $U -n 1 $T > $TMPDIR/eval_line_out.txt 2>>"$STDERR_LOG" &
-echo "hello" | $OMQ push -c $U -E '$_.upcase' $T 2>>"$STDERR_LOG"
+echo "hello" | $OMQ push -c $U -E 'it.first.upcase' $T 2>>"$STDERR_LOG"
 wait
-check "-E sets \$_ to first frame" "HELLO" "$(cat $TMPDIR/eval_line_out.txt)"
+check "-E it.first returns first frame" "HELLO" "$(cat $TMPDIR/eval_line_out.txt)"
 
 # -- Eval nil skips output ------------------------------------------
 

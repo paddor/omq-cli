@@ -5,7 +5,7 @@ require_relative "support"
 describe "eval_send_expr" do
   before do
     @runner = OMQ::CLI::PushRunner.new(
-      make_config(type_name: "push", send_expr: "[$_, *it]"),
+      make_config(type_name: "push", send_expr: "[it.first, *it]"),
       OMQ::PUSH
     )
     @runner.send(:compile_expr)
@@ -14,21 +14,6 @@ describe "eval_send_expr" do
   it "sets it to message parts" do
     result = @runner.send(:eval_send_expr, ["hello", "world"])
     assert_equal ["hello", "hello", "world"], result
-  end
-
-  it "sets $_ to first frame" do
-    result = @runner.send(:eval_send_expr, ["first", "second"])
-    assert_equal "first", result.first
-  end
-
-  it "sets $_ to nil when parts is nil" do
-    runner = OMQ::CLI::PushRunner.new(
-      make_config(type_name: "push", send_expr: "$_.nil? ? 'yes' : 'no'"),
-      OMQ::PUSH
-    )
-    runner.send(:compile_expr)
-    result = runner.send(:eval_send_expr, nil)
-    assert_equal ["yes"], result
   end
 
   it "returns nil when expression evaluates to nil" do
@@ -99,9 +84,9 @@ describe "eval_recv_expr" do
     assert_nil runner.send(:eval_recv_expr, ["anything"])
   end
 
-  it "sets $_ to first frame" do
+  it "it.first returns the first frame" do
     runner = OMQ::CLI::PullRunner.new(
-      make_config(type_name: "pull", recv_expr: "$_"),
+      make_config(type_name: "pull", recv_expr: "it.first"),
       OMQ::PULL
     )
     runner.send(:compile_expr)
@@ -169,7 +154,7 @@ describe "BEGIN/END blocks per direction" do
 
   it "compiles BEGIN/END for recv_expr" do
     runner = OMQ::CLI::PullRunner.new(
-      make_config(type_name: "pull", recv_expr: 'BEGIN{ @sum = 0 } @sum += Integer($_); next END{ puts @sum }'),
+      make_config(type_name: "pull", recv_expr: 'BEGIN{ @sum = 0 } @sum += Integer(it.first); next END{ puts @sum }'),
       OMQ::PULL
     )
     runner.send(:compile_expr)
@@ -322,5 +307,46 @@ describe "extract_blocks" do
       'it END{ puts "done" }')
     assert_nil begin_body
     assert_equal ' puts "done" ', end_body
+  end
+end
+
+
+# -- Explicit block parameters -----------------------------------------
+
+describe "explicit block parameters" do
+  def ev(src, format: :ascii)
+    OMQ::CLI::ExpressionEvaluator.new(src, format: format)
+  end
+
+  it "single param receives whole parts array" do
+    e = ev('|msg| msg.map(&:upcase)')
+    result = e.call(["hello", "world"], Object.new)
+    assert_equal ["HELLO", "WORLD"], result
+  end
+
+  it "destructures with parens" do
+    e = ev('|(a, b)| [b, a]')
+    result = e.call(["hello", "world"], Object.new)
+    assert_equal ["world", "hello"], result
+  end
+
+  it "works with BEGIN/END blocks" do
+    e = ev('BEGIN{ @n = 0 } |msg| @n += 1; msg')
+    ctx = Object.new
+    ctx.instance_exec(&e.begin_proc)
+    result = e.call(["x", "y"], ctx)
+    assert_equal ["x", "y"], result
+    assert_equal 1, ctx.instance_variable_get(:@n)
+  end
+
+  it "without params, it is the parts array" do
+    e = ev('it')
+    result = e.call(["hello", "world"], Object.new)
+    assert_equal ["hello", "world"], result
+  end
+
+  it "returns nil for filtering" do
+    e = ev('|msg| nil')
+    assert_nil e.call(["hello", "world"], Object.new)
   end
 end

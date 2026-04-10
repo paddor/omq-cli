@@ -26,16 +26,13 @@ module OMQ
 
         if src
           expr, begin_body, end_body = extract_blocks(src)
-          @begin_proc = eval("proc { #{begin_body} }") if begin_body # rubocop:disable Security/Eval
-          @end_proc   = eval("proc { #{end_body} }")   if end_body   # rubocop:disable Security/Eval
+          @begin_proc = eval("proc { #{begin_body} }") if begin_body
+          @end_proc   = eval("proc { #{end_body} }")   if end_body
           if expr && !expr.strip.empty?
-            @eval_proc = eval("proc { $_ = it&.first; #{expr} }") # rubocop:disable Security/Eval
+            @eval_proc = eval("proc { #{expr} }")
           end
         elsif fallback_proc
-          @eval_proc = proc {
-            $_ = it&.first
-            fallback_proc.call(it)
-          }
+          @eval_proc = proc { fallback_proc.call(it) }
         end
       end
 
@@ -107,11 +104,11 @@ module OMQ
         expr, begin_body = extract.(src, "BEGIN")
         expr, end_body   = extract.(expr, "END")
 
-        begin_proc = eval("proc { #{begin_body} }") if begin_body # rubocop:disable Security/Eval
-        end_proc   = eval("proc { #{end_body} }")   if end_body   # rubocop:disable Security/Eval
+        begin_proc = eval("proc { #{begin_body} }") if begin_body
+        end_proc   = eval("proc { #{end_body} }")   if end_body
         eval_proc  = nil
         if expr && !expr.strip.empty?
-          eval_proc = eval("proc { $_ = it&.first; #{expr} }") # rubocop:disable Security/Eval
+          eval_proc = eval("proc { #{expr} }")
         end
 
         [begin_proc, end_proc, eval_proc]

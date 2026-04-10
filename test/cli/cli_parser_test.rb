@@ -141,7 +141,7 @@ describe "OMQ::CLI::CliParser.validate!" do
   end
 
   it "allows --send-eval on ROUTER without --target" do
-    OMQ::CLI::CliParser.validate!(base_opts("router").merge(send_expr: '["id", $_]'))
+    OMQ::CLI::CliParser.validate!(base_opts("router").merge(send_expr: '["id", it.first]'))
   end
 
   it "allows both --send-eval and --recv-eval on bidirectional sockets" do
@@ -373,19 +373,19 @@ describe "OMQ::CLI::CliParser.parse" do
   end
 
   it "parses --recv-eval long form" do
-    opts = OMQ::CLI::CliParser.parse(["pull", "-b", "tcp://:1", "--recv-eval", "$_"])
-    assert_equal "$_", opts[:recv_expr]
+    opts = OMQ::CLI::CliParser.parse(["pull", "-b", "tcp://:1", "--recv-eval", "it.first"])
+    assert_equal "it.first", opts[:recv_expr]
   end
 
   it "parses --send-eval long form" do
-    opts = OMQ::CLI::CliParser.parse(["push", "-c", "tcp://x:1", "--send-eval", "$_"])
-    assert_equal "$_", opts[:send_expr]
+    opts = OMQ::CLI::CliParser.parse(["push", "-c", "tcp://x:1", "--send-eval", "it.first"])
+    assert_equal "it.first", opts[:send_expr]
   end
 
   it "parses both -e and -E together" do
-    opts = OMQ::CLI::CliParser.parse(["req", "-c", "tcp://x:1", "-E", "build($_)", "-e", "parse($_)"])
-    assert_equal "build($_)",  opts[:send_expr]
-    assert_equal "parse($_)", opts[:recv_expr]
+    opts = OMQ::CLI::CliParser.parse(["req", "-c", "tcp://x:1", "-E", "build(it)", "-e", "parse(it)"])
+    assert_equal "build(it)",  opts[:send_expr]
+    assert_equal "parse(it)", opts[:recv_expr]
   end
 
   it "parses --in/--out modal endpoints for pipe" do

@@ -115,7 +115,7 @@ omq router -b tcp://:5555
 omq router -b tcp://:5555 --target worker-1 -D "reply"
 
 # dynamic routing via send-eval (first element = identity)
-omq router -b tcp://:5555 -E '["worker-1", $_.upcase]'
+omq router -b tcp://:5555 -E '["worker-1", it.first.upcase]'
 ```
 
 `--target` and `--send-eval` are mutually exclusive on routing sockets.
@@ -128,7 +128,7 @@ Pipe creates an internal PULL → eval → PUSH pipeline:
 omq pipe -c ipc://@work -c ipc://@sink -e 'it.map(&:upcase)'
 
 # with Ractor workers for CPU parallelism
-omq pipe -c ipc://@work -c ipc://@sink -P 4 -r./fib.rb -e 'fib(Integer($_)).to_s'
+omq pipe -c ipc://@work -c ipc://@sink -P 4 -r./fib.rb -e 'fib(Integer(it.first)).to_s'
 ```
 
 The first endpoint is the pull-side (input), the second is the push-side (output).
@@ -144,7 +144,19 @@ Both must use `-c`.
 | Variable | Value |
 |----------|-------|
 | `it` | Message parts (`Array<String>`) — Ruby's default block variable |
-| `$_` | First part (`it.first`) — regexps match against this |
+
+### Block parameters
+
+Expressions support Ruby block parameter syntax. A single parameter receives
+the whole parts array; use `|(a, b)|` to destructure:
+
+```sh
+# single param = parts array
+omq pull -b tcp://:5557 -e '|msg| msg.map(&:upcase)'
+
+# destructure multipart messages
+omq pull -b tcp://:5557 -e '|(key, value)| "#{key}=#{value}"'
+```
 
 ### Return value
 
@@ -170,7 +182,7 @@ omq pull -b tcp://:5557 -e 'break if /quit/; it'
 Like awk — `BEGIN{}` runs once before the message loop, `END{}` runs after:
 
 ```sh
-omq pull -b tcp://:5557 -e 'BEGIN{ @sum = 0 } @sum += Integer($_); next END{ puts @sum }'
+omq pull -b tcp://:5557 -e 'BEGIN{ @sum = 0 } @sum += Integer(it.first); next END{ puts @sum }'
 ```
 
 Local variables won't work to share state between the blocks. Use `@ivars` instead.
@@ -415,7 +427,7 @@ omq router -b tcp://:5555
 omq router -b tcp://:5555 --target worker-1 -D "reply"
 
 # ROUTER dynamic routing via -E (first element = routing identity)
-omq router -b tcp://:5555 -E '["worker-1", $_.upcase]'
+omq router -b tcp://:5555 -E '["worker-1", it.first.upcase]'
 
 # binary routing IDs (0x prefix)
 omq router -b tcp://:5555 --target 0xdeadbeef -D "reply"
@@ -430,7 +442,7 @@ Pipe creates an in-process PULL → eval → PUSH pipeline:
 omq pipe -c ipc://@work -c ipc://@sink -e 'it.map(&:upcase)'
 
 # parallel Ractor workers (default: all CPUs)
-omq pipe -c ipc://@work -c ipc://@sink -P -r./fib.rb -e 'fib(Integer($_)).to_s'
+omq pipe -c ipc://@work -c ipc://@sink -P -r./fib.rb -e 'fib(Integer(it.first)).to_s'
 
 # fixed number of workers
 omq pipe -c ipc://@work -c ipc://@sink -P 4 -e 'it.map(&:upcase)'
