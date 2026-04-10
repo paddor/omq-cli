@@ -340,7 +340,7 @@ module OMQ
           }
           o.on("--heartbeat-ivl SECS", Float, "ZMTP heartbeat interval (detects dead peers)") { |v| opts[:heartbeat_ivl] = v }
           o.on("--recv-maxsz SIZE", "Max inbound message size, e.g. 4096, 64K, 1M, 2G (default 1M, 0=unlimited; larger messages drop the connection)") { |v| opts[:recv_maxsz] = parse_byte_size(v) }
-          o.on("--hwm N", Integer, "High water mark (default 100, 0=unbounded; modal with --in/--out)") do |v|
+          o.on("--hwm N", Integer, "High water mark (default 64, 0=unbounded; modal with --in/--out)") do |v|
             case pipe_side
             when :in
               opts[:recv_hwm] = v

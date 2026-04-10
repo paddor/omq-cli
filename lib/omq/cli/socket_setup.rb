@@ -7,11 +7,13 @@ module OMQ
     #
     module SocketSetup
       # Default high water mark applied when the user does not pass
-      # --hwm. Lower than libzmq's default (1000) to keep
-      # memory footprint small for the typical CLI use cases (interactive
-      # debugging, short-lived pipelines). Pipe worker sockets override this
-      # with a still-smaller value for tighter backpressure.
-      DEFAULT_HWM = 100
+      # --hwm. Lower than libzmq's default (1000) to keep memory
+      # footprint bounded for the typical CLI use cases (interactive
+      # debugging, short-lived pipelines). 64 matches OMQ's internal
+      # batch sizes: Readable::RECV_BATCH_SIZE (one #receive drains a
+      # full queue in one dequeue) and the recv pump's fairness limit
+      # (one fairness batch exactly fills a full queue).
+      DEFAULT_HWM = 64
 
       # Default max inbound message size applied when the user does not
       # pass --recv-maxsz. The omq library itself is unlimited by default;

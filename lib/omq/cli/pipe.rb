@@ -5,11 +5,6 @@ module OMQ
     # Runner for the virtual "pipe" socket type (PULL -> eval -> PUSH).
     # Supports sequential and parallel (Ractor-based) processing modes.
     class PipeRunner
-      # Default HWM for pipe sockets when the user hasn't set one.
-      # Much lower than the socket default (1000) to bound memory
-      # with large messages in pipeline stages.
-      PIPE_HWM = 16
-
       # @return [Config] frozen CLI configuration
       attr_reader :config
 
@@ -87,8 +82,6 @@ module OMQ
         push = OMQ::PUSH.new(**kwargs)
         SocketSetup.apply_options(pull, config)
         SocketSetup.apply_options(push, config)
-        pull.recv_hwm = PIPE_HWM unless config.recv_hwm
-        push.send_hwm = PIPE_HWM unless config.send_hwm
         SocketSetup.attach_endpoints(pull, in_eps, verbose: config.verbose)
         SocketSetup.attach_endpoints(push, out_eps, verbose: config.verbose)
         [pull, push]

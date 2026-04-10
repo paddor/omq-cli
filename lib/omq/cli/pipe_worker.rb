@@ -42,8 +42,6 @@ module OMQ
         @push = OMQ::PUSH.new(**kwargs)
         OMQ::CLI::SocketSetup.apply_options(@pull, @config)
         OMQ::CLI::SocketSetup.apply_options(@push, @config)
-        @pull.recv_hwm = PipeRunner::PIPE_HWM unless @config.recv_hwm
-        @push.send_hwm = PipeRunner::PIPE_HWM unless @config.send_hwm
         OMQ::CLI::SocketSetup.attach_endpoints(@pull, @in_eps, verbose: 0)
         OMQ::CLI::SocketSetup.attach_endpoints(@push, @out_eps, verbose: 0)
       end
