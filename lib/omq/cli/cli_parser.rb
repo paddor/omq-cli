@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "socket"
+
 module OMQ
   module CLI
     # Parses and validates command-line arguments for the omq CLI.
