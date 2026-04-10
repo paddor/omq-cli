@@ -20,7 +20,7 @@ module OMQ
           setup_sockets
           log_endpoints if @config.verbose >= 1
           start_monitors if @config.verbose >= 2
-          wait_for_peers
+          wait_for_peers_with_timeout if @config.timeout
           compile_expr
           run_message_loop
           run_end_block
@@ -66,10 +66,15 @@ module OMQ
       end
 
 
-      def wait_for_peers
-        Barrier do |barrier|
-          barrier.async { @pull.peer_connected.wait }
-          barrier.async { @push.peer_connected.wait }
+      # With --timeout set, fail fast if peers never show up. Without
+      # it, there's no point waiting: PULL#receive blocks naturally
+      # and PUSH buffers up to send_hwm when no peer is present.
+      def wait_for_peers_with_timeout
+        Fiber.scheduler.with_timeout(@config.timeout) do
+          Barrier do |barrier|
+            barrier.async { @pull.peer_connected.wait }
+            barrier.async { @push.peer_connected.wait }
+          end
         end
       end
 

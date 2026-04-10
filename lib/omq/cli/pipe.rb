@@ -57,18 +57,7 @@ module OMQ
         compile_expr
         @sock = @pull  # for eval instance_exec
         start_event_monitors if config.verbose >= 2
-        wait_body = proc do
-          Barrier do |barrier|
-            barrier.async(annotation: "wait push peer") { @push.peer_connected.wait }
-            barrier.async(annotation: "wait pull peer") { @pull.peer_connected.wait }
-          end
-        end
-
-        if config.timeout
-          Fiber.scheduler.with_timeout(config.timeout, &wait_body)
-        else
-          wait_body.call
-        end
+        wait_for_peers_with_timeout if config.timeout
         setup_sequential_transient(task)
         @sock.instance_exec(&@recv_begin_proc) if @recv_begin_proc
         sequential_message_loop
@@ -76,6 +65,19 @@ module OMQ
       ensure
         @pull&.close
         @push&.close
+      end
+
+
+      # With --timeout set, fail fast if peers never show up. Without
+      # it, there's no point waiting: PULL#receive blocks naturally
+      # and PUSH buffers up to send_hwm when no peer is present.
+      def wait_for_peers_with_timeout
+        Fiber.scheduler.with_timeout(config.timeout) do
+          Barrier do |barrier|
+            barrier.async(annotation: "wait push peer") { @push.peer_connected.wait }
+            barrier.async(annotation: "wait pull peer") { @pull.peer_connected.wait }
+          end
+        end
       end
 
 

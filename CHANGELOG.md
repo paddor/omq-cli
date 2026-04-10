@@ -17,6 +17,18 @@
 
 ### Changed
 
+- **`pipe` no longer waits for peers unless `--timeout` is set.** The
+  previous unconditional `Barrier { pull.peer_connected + push.peer_connected }`
+  gate served no correctness purpose: `PULL#receive` blocks naturally
+  when no source is connected, and `PUSH` buffers up to `send_hwm` when
+  no sink is connected, so the loop can start immediately. Concretely,
+  `omq pipe -c ipc://@src -b ipc://@sink` started without a sink now
+  drains the source until both sides' HWMs are full (recv_queue +
+  send_queue = 2 × HWM) instead of silently blocking at 1 × HWM in the
+  recv pump while the worker loop sat idle at the wait. When
+  `--timeout` *is* set, the wait is preserved as a fail-fast starting
+  gate.
+
 - **Event formatting consolidated into `OMQ::CLI::Term`** — a new
   stateless module (`module_function`) with `format_attach`,
   `format_event`, `write_attach`, `write_event`, and `log_prefix`.
