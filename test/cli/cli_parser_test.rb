@@ -284,18 +284,41 @@ describe "OMQ::CLI::CliParser.parse" do
   end
 
   it "collects multiple binds" do
+    loopback = OMQ::CLI::CliParser.loopback_bind_host
     opts = OMQ::CLI::CliParser.parse(["pull", "-b", "tcp://:1", "-b", "tcp://:2"])
-    assert_equal ["tcp://localhost:1", "tcp://localhost:2"], opts[:binds]
+    assert_equal ["tcp://#{loopback}:1", "tcp://#{loopback}:2"], opts[:binds]
   end
 
-  it "expands tcp://*:PORT to 0.0.0.0" do
+  it "expands tcp://*:PORT to 0.0.0.0 for binds" do
     opts = OMQ::CLI::CliParser.parse(["pull", "-b", "tcp://*:1234"])
     assert_equal ["tcp://0.0.0.0:1234"], opts[:binds]
+  end
+
+  it "expands tcp://:PORT to loopback for binds" do
+    loopback = OMQ::CLI::CliParser.loopback_bind_host
+    opts = OMQ::CLI::CliParser.parse(["pull", "-b", "tcp://:1234"])
+    assert_equal ["tcp://#{loopback}:1234"], opts[:binds]
   end
 
   it "expands tcp://:PORT to localhost for connects" do
     opts = OMQ::CLI::CliParser.parse(["push", "-c", "tcp://:1234"])
     assert_equal ["tcp://localhost:1234"], opts[:connects]
+  end
+
+  it "expands tcp://*:PORT to localhost for connects" do
+    opts = OMQ::CLI::CliParser.parse(["push", "-c", "tcp://*:1234"])
+    assert_equal ["tcp://localhost:1234"], opts[:connects]
+  end
+
+  it "passes through explicit bind addresses" do
+    opts = OMQ::CLI::CliParser.parse(["pull", "-b", "tcp://0.0.0.0:1234"])
+    assert_equal ["tcp://0.0.0.0:1234"], opts[:binds]
+
+    opts = OMQ::CLI::CliParser.parse(["pull", "-b", "tcp://[::]:1234"])
+    assert_equal ["tcp://[::]:1234"], opts[:binds]
+
+    opts = OMQ::CLI::CliParser.parse(["pull", "-b", "tcp://127.0.0.1:1234"])
+    assert_equal ["tcp://127.0.0.1:1234"], opts[:binds]
   end
 
   it "parses format flags" do

@@ -2,6 +2,6 @@
 
 module OMQ
   module CLI
-    VERSION = "0.11.1"
+    VERSION = "0.11.2"
   end
 end

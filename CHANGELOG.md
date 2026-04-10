@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.11.2 — 2026-04-10
+
+### Fixed
+
+- **Endpoint normalization for `tcp://:PORT`.** Connects now normalize
+  to `tcp://localhost:PORT` (preserving Happy Eyeballs) instead of
+  `tcp://127.0.0.1:PORT`. Binds normalize to the loopback address
+  (`[::1]` on IPv6-capable hosts, `127.0.0.1` otherwise) instead of
+  `0.0.0.0` (all interfaces). `tcp://*:PORT` binds still expand to
+  `0.0.0.0`. Explicit addresses (`0.0.0.0`, `[::]`, `127.0.0.1`) pass
+  through unchanged. The macOS hang (IPv6 `connect(2)` stalling via
+  kqueue) is fixed by the connect timeout in omq v0.17.3.
+
 ## 0.11.0 — 2026-04-10
 
 ### Added
