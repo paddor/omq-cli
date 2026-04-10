@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.0 — 2026-04-10
 
 ### Added
 
@@ -18,13 +18,11 @@
 ### Changed
 
 - **Universal default HWM is now 64** (was 100 for most sockets, 16
-  for pipe). 64 matches OMQ's internal batch sizes:
-  `Readable::RECV_BATCH_SIZE` (one `#receive` drains a full queue in
-  one dequeue) and the recv pump's per-fairness-batch limit (one
-  fairness batch exactly fills a full queue). Removed the special-
-  case `PipeRunner::PIPE_HWM = 16` override — pipe sockets now use
-  the same default as everything else, eliminating the documented-
-  but-surprising cliff.
+  for pipe). 64 matches the recv pump's per-fairness-batch limit
+  (one batch exactly fills a full queue). Removed the special-case
+  `PipeRunner::PIPE_HWM = 16` override — pipe sockets now use the
+  same default as everything else, eliminating the documented-but-
+  surprising cliff.
 
 - **`pipe` no longer waits for peers unless `--timeout` is set.** The
   previous unconditional `Barrier { pull.peer_connected + push.peer_connected }`
