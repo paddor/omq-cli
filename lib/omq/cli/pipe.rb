@@ -87,8 +87,8 @@ module OMQ
         SocketSetup.apply_options(push, config)
         pull.recv_hwm = PIPE_HWM unless config.recv_hwm
         push.send_hwm = PIPE_HWM unless config.send_hwm
-        SocketSetup.attach_endpoints(pull, in_eps, verbose: config.verbose >= 1)
-        SocketSetup.attach_endpoints(push, out_eps, verbose: config.verbose >= 1)
+        SocketSetup.attach_endpoints(pull, in_eps, verbose: config.verbose)
+        SocketSetup.attach_endpoints(push, out_eps, verbose: config.verbose)
         [pull, push]
       end
 
@@ -189,19 +189,10 @@ module OMQ
 
 
       def start_event_monitors
-        verbose = config.verbose >= 3
+        trace = config.verbose >= 3
         [@pull, @push].each do |sock|
-          sock.monitor(verbose: verbose) do |event|
-            case event.type
-            when :message_sent
-              $stderr.write("omq: >> #{Formatter.preview(event.detail[:parts])}\n")
-            when :message_received
-              $stderr.write("omq: << #{Formatter.preview(event.detail[:parts])}\n")
-            else
-              ep = event.endpoint ? " #{event.endpoint}" : ""
-              detail = event.detail ? " #{event.detail}" : ""
-              $stderr.write("omq: #{event.type}#{ep}#{detail}\n")
-            end
+          sock.monitor(verbose: trace) do |event|
+            Term.write_event(event, config.verbose)
           end
         end
       end

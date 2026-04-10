@@ -44,14 +44,15 @@ module OMQ
         OMQ::CLI::SocketSetup.apply_options(@push, @config)
         @pull.recv_hwm = PipeRunner::PIPE_HWM unless @config.recv_hwm
         @push.send_hwm = PipeRunner::PIPE_HWM unless @config.send_hwm
-        OMQ::CLI::SocketSetup.attach_endpoints(@pull, @in_eps, verbose: false)
-        OMQ::CLI::SocketSetup.attach_endpoints(@push, @out_eps, verbose: false)
+        OMQ::CLI::SocketSetup.attach_endpoints(@pull, @in_eps, verbose: 0)
+        OMQ::CLI::SocketSetup.attach_endpoints(@push, @out_eps, verbose: 0)
       end
 
 
       def log_endpoints
-        @in_eps.each { |ep| @log_port.send(ep.bind? ? "Bound to #{ep.url}" : "Connecting to #{ep.url}") }
-        @out_eps.each { |ep| @log_port.send(ep.bind? ? "Bound to #{ep.url}" : "Connecting to #{ep.url}") }
+        (@in_eps + @out_eps).each do |ep|
+          @log_port.send(OMQ::CLI::Term.format_attach(ep.bind? ? :bind : :connect, ep.url, @config.verbose))
+        end
       end
 
 
@@ -59,22 +60,8 @@ module OMQ
         trace = @config.verbose >= 3
         [@pull, @push].each do |sock|
           sock.monitor(verbose: trace) do |event|
-            @log_port.send(format_event(event))
+            @log_port.send(OMQ::CLI::Term.format_event(event, @config.verbose))
           end
-        end
-      end
-
-
-      def format_event(event)
-        case event.type
-        when :message_sent
-          "omq: >> #{OMQ::CLI::Formatter.preview(event.detail[:parts])}"
-        when :message_received
-          "omq: << #{OMQ::CLI::Formatter.preview(event.detail[:parts])}"
-        else
-          ep     = event.endpoint ? " #{event.endpoint}" : ""
-          detail = event.detail ? " #{event.detail}" : ""
-          "omq: #{event.type}#{ep}#{detail}"
         end
       end
 

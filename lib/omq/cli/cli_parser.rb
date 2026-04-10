@@ -390,7 +390,7 @@ module OMQ
           o.separator "            OMQ_CRYPTO (backend: rbnacl or nuckle)"
 
           o.separator "\nOther:"
-          o.on("-v", "--verbose",   "Verbosity: -v endpoints, -vv events, -vvv messages") { opts[:verbose] += 1 }
+          o.on("-v", "--verbose",   "Verbosity: -v endpoints, -vv events, -vvv messages, -vvvv timestamps") { opts[:verbose] += 1 }
           o.on("-q", "--quiet",     "Suppress message output")           { opts[:quiet] = true }
           o.on(      "--transient", "Exit when all peers disconnect")    { opts[:transient] = true }
           o.on(      "--ffi",       "Use libzmq FFI backend (requires omq-ffi gem + system libzmq 4.x)") do

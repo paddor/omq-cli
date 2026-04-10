@@ -99,7 +99,7 @@ module OMQ
 
 
       def attach_endpoints
-        SocketSetup.attach(@sock, config, verbose: config.verbose >= 1)
+        SocketSetup.attach(@sock, config, verbose: config.verbose)
       end
 
 
@@ -464,19 +464,10 @@ module OMQ
 
       # -vv: log connect/disconnect/retry/timeout events via Socket#monitor
       # -vvv: also log message sent/received traces
+      # -vvvv: also prepend ISO8601 µs-precision timestamps
       def start_event_monitor
-        verbose = config.verbose >= 3
-        @sock.monitor(verbose: verbose) do |event|
-          case event.type
-          when :message_sent
-            $stderr.write("omq: >> #{Formatter.preview(event.detail[:parts])}\n")
-          when :message_received
-            $stderr.write("omq: << #{Formatter.preview(event.detail[:parts])}\n")
-          else
-            ep = event.endpoint ? " #{event.endpoint}" : ""
-            detail = event.detail ? " #{event.detail}" : ""
-            $stderr.write("omq: #{event.type}#{ep}#{detail}\n")
-          end
+        @sock.monitor(verbose: config.verbose >= 3) do |event|
+          Term.write_event(event, config.verbose)
         end
       end
     end

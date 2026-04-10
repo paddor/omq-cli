@@ -44,14 +44,14 @@ module OMQ
         @sock = @config.ffi ? OMQ.const_get(@socket_sym).new(backend: :ffi) : OMQ.const_get(@socket_sym).new
         OMQ::CLI::SocketSetup.apply_options(@sock, @config)
         @sock.identity = @config.identity if @config.identity
-        OMQ::CLI::SocketSetup.attach_endpoints(@sock, @endpoints, verbose: false)
+        OMQ::CLI::SocketSetup.attach_endpoints(@sock, @endpoints, verbose: 0)
       end
 
 
       def log_endpoints
         return unless @config.verbose >= 1
         @endpoints.each do |ep|
-          @log_port.send(ep.bind? ? "Bound to #{ep.url}" : "Connecting to #{ep.url}")
+          @log_port.send(OMQ::CLI::Term.format_attach(ep.bind? ? :bind : :connect, ep.url, @config.verbose))
         end
       end
 
@@ -60,21 +60,7 @@ module OMQ
         return unless @config.verbose >= 2
         trace = @config.verbose >= 3
         @sock.monitor(verbose: trace) do |event|
-          @log_port.send(format_event(event))
-        end
-      end
-
-
-      def format_event(event)
-        case event.type
-        when :message_sent
-          "omq: >> #{OMQ::CLI::Formatter.preview(event.detail[:parts])}"
-        when :message_received
-          "omq: << #{OMQ::CLI::Formatter.preview(event.detail[:parts])}"
-        else
-          ep = event.endpoint ? " #{event.endpoint}" : ""
-          detail = event.detail ? " #{event.detail}" : ""
-          "omq: #{event.type}#{ep}#{detail}"
+          @log_port.send(OMQ::CLI::Term.format_event(event, @config.verbose))
         end
       end
 

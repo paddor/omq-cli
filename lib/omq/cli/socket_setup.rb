@@ -57,30 +57,32 @@ module OMQ
 
 
       # Bind/connect +sock+ using URL strings from +config.binds+ / +config.connects+.
+      # +verbose+ is the integer verbosity level (0 = silent).
       #
-      def self.attach(sock, config, verbose: false)
+      def self.attach(sock, config, verbose: 0)
         config.binds.each do |url|
           sock.bind(url)
-          $stderr.puts "Bound to #{sock.last_endpoint}" if verbose
+          CLI::Term.write_attach(:bind, sock.last_endpoint, verbose) if verbose >= 1
         end
         config.connects.each do |url|
           sock.connect(url)
-          $stderr.puts "Connecting to #{url}" if verbose
+          CLI::Term.write_attach(:connect, url, verbose) if verbose >= 1
         end
       end
 
 
       # Bind/connect +sock+ from an Array of Endpoint objects.
       # Used by PipeRunner, which works with structured endpoint lists.
+      # +verbose+ is the integer verbosity level (0 = silent).
       #
-      def self.attach_endpoints(sock, endpoints, verbose: false)
+      def self.attach_endpoints(sock, endpoints, verbose: 0)
         endpoints.each do |ep|
           if ep.bind?
             sock.bind(ep.url)
-            $stderr.puts "Bound to #{sock.last_endpoint}" if verbose
+            CLI::Term.write_attach(:bind, sock.last_endpoint, verbose) if verbose >= 1
           else
             sock.connect(ep.url)
-            $stderr.puts "Connecting to #{ep.url}" if verbose
+            CLI::Term.write_attach(:connect, ep.url, verbose) if verbose >= 1
           end
         end
       end

@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **`-vvvv` adds ISO8601 µs-precision timestamps** to every log line
+  (endpoint attach, monitor events, message traces). Useful for
+  debugging time-sensitive reconnect and handshake races where
+  untimestamped `-vvv` output makes every event look instantaneous.
+  `-v`/`-vv`/`-vvv` are unchanged.
+
+- **YJIT enabled by default in `exe/omq`.** `RubyVM::YJIT.enable` is
+  called before loading the CLI. Skipped if `RUBYOPT` is set (so users
+  who pass `--disable-yjit` or similar keep their choice), if the
+  interpreter lacks YJIT, or if YJIT is already on.
+
+### Changed
+
+- **Event formatting consolidated into `OMQ::CLI::Term`** — a new
+  stateless module (`module_function`) with `format_attach`,
+  `format_event`, `write_attach`, `write_event`, and `log_prefix`.
+  Replaces four duplicated copies across `BaseRunner`, `PipeRunner`,
+  `ParallelWorker`, and `PipeWorker` that had drifted apart — pipe-
+  mode event lines were missing the `-vvvv` timestamp prefix because
+  `PipeRunner` had its own copy of the formatter.
+
 ## 0.10.0 — 2026-04-09
 
 ### Changed
