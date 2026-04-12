@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **TCP host normalization moved into `OMQ::Transport::TCP`.** `omq`
+  v0.19.0 now handles `tcp://*:PORT`, `tcp://:PORT`, and
+  `tcp://localhost:PORT` natively (including dual-stack `*` binding
+  both IPv4 and IPv6 wildcards), so `CliParser` no longer rewrites
+  these URLs before handing them off. Removed
+  `CliParser.loopback_bind_host` and the `normalize_bind`/
+  `normalize_connect`/`normalize_ep` block. Requires `omq ~> 0.19`.
+
 ## 0.13.0 — 2026-04-12
 
 ### Added

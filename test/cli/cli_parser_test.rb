@@ -284,9 +284,8 @@ describe "OMQ::CLI::CliParser.parse" do
   end
 
   it "collects multiple binds" do
-    loopback = OMQ::CLI::CliParser.loopback_bind_host
     opts = OMQ::CLI::CliParser.parse(["pull", "-b", "tcp://:1", "-b", "tcp://:2"])
-    assert_equal ["tcp://#{loopback}:1", "tcp://#{loopback}:2"], opts[:binds]
+    assert_equal ["tcp://:1", "tcp://:2"], opts[:binds]
   end
 
   it "expands @name to ipc://@name for connects" do
@@ -316,25 +315,24 @@ describe "OMQ::CLI::CliParser.parse" do
     assert_equal "/tmp/sock", opts[:endpoints].first.url
   end
 
-  it "expands tcp://*:PORT to 0.0.0.0 for binds" do
+  it "passes tcp://*:PORT through for binds (OMQ::Transport::TCP handles it)" do
     opts = OMQ::CLI::CliParser.parse(["pull", "-b", "tcp://*:1234"])
-    assert_equal ["tcp://0.0.0.0:1234"], opts[:binds]
+    assert_equal ["tcp://*:1234"], opts[:binds]
   end
 
-  it "expands tcp://:PORT to loopback for binds" do
-    loopback = OMQ::CLI::CliParser.loopback_bind_host
+  it "passes tcp://:PORT through for binds (OMQ::Transport::TCP handles it)" do
     opts = OMQ::CLI::CliParser.parse(["pull", "-b", "tcp://:1234"])
-    assert_equal ["tcp://#{loopback}:1234"], opts[:binds]
+    assert_equal ["tcp://:1234"], opts[:binds]
   end
 
-  it "expands tcp://:PORT to localhost for connects" do
+  it "passes tcp://:PORT through for connects (OMQ::Transport::TCP handles it)" do
     opts = OMQ::CLI::CliParser.parse(["push", "-c", "tcp://:1234"])
-    assert_equal ["tcp://localhost:1234"], opts[:connects]
+    assert_equal ["tcp://:1234"], opts[:connects]
   end
 
-  it "expands tcp://*:PORT to localhost for connects" do
+  it "passes tcp://*:PORT through for connects (OMQ::Transport::TCP handles it)" do
     opts = OMQ::CLI::CliParser.parse(["push", "-c", "tcp://*:1234"])
-    assert_equal ["tcp://localhost:1234"], opts[:connects]
+    assert_equal ["tcp://*:1234"], opts[:connects]
   end
 
   it "passes through explicit bind addresses" do
