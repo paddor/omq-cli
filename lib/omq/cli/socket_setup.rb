@@ -58,32 +58,32 @@ module OMQ
 
 
       # Bind/connect +sock+ using URL strings from +config.binds+ / +config.connects+.
-      # +verbose+ is the integer verbosity level (0 = silent).
+      # +verbose+ gates logging (>= 1), +timestamps+ controls prefix.
       #
-      def self.attach(sock, config, verbose: 0)
+      def self.attach(sock, config, verbose: 0, timestamps: nil)
         config.binds.each do |url|
           sock.bind(url)
-          CLI::Term.write_attach(:bind, sock.last_endpoint, verbose) if verbose >= 1
+          CLI::Term.write_attach(:bind, sock.last_endpoint, timestamps) if verbose >= 1
         end
         config.connects.each do |url|
           sock.connect(url)
-          CLI::Term.write_attach(:connect, url, verbose) if verbose >= 1
+          CLI::Term.write_attach(:connect, url, timestamps) if verbose >= 1
         end
       end
 
 
       # Bind/connect +sock+ from an Array of Endpoint objects.
       # Used by PipeRunner, which works with structured endpoint lists.
-      # +verbose+ is the integer verbosity level (0 = silent).
+      # +verbose+ gates logging (>= 1), +timestamps+ controls prefix.
       #
-      def self.attach_endpoints(sock, endpoints, verbose: 0)
+      def self.attach_endpoints(sock, endpoints, verbose: 0, timestamps: nil)
         endpoints.each do |ep|
           if ep.bind?
             sock.bind(ep.url)
-            CLI::Term.write_attach(:bind, sock.last_endpoint, verbose) if verbose >= 1
+            CLI::Term.write_attach(:bind, sock.last_endpoint, timestamps) if verbose >= 1
           else
             sock.connect(ep.url)
-            CLI::Term.write_attach(:connect, ep.url, verbose) if verbose >= 1
+            CLI::Term.write_attach(:connect, ep.url, timestamps) if verbose >= 1
           end
         end
       end

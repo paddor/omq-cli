@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.13.0 — 2026-04-12
+
+### Added
+
+- **`--timestamps[=PRECISION]` flag.** Prefix log lines with UTC
+  timestamps. Accepts `s`, `ms` (default), or `us`. Replaces the
+  former `-vvvv` special meaning, which has been removed.
+- **`-M` / `--marshal` preserves arbitrary objects on the wire.**
+  Eval results in `--format marshal` mode (e.g. `Time.now`, hashes,
+  UTF-16LE strings) are now passed through unchanged instead of
+  being coerced via `#to_s`. Affects both the main runner and
+  Ractor workers (`-P`).
+- **`-P0` ⇒ `nproc`.** `-P0` (or bare `-P`) spawns one Ractor worker
+  per CPU, capped at 16. Short-option clustering works: `-P0zvv`
+  expands to `-P 0 -z -v -v`.
+
+### Changed
+
+- **`-vvv` shows decompressed message previews.** When `--compress`
+  is active, message traces now log the decompressed parts and
+  include the on-wire size: `(5B wire=21B) hello`. Engine-level
+  message events are suppressed in compressed mode to avoid
+  double-logging compressed bytes.
+- **Truncation marker uses `…` (U+2026).** `Formatter.preview`
+  truncation now uses the real horizontal ellipsis character
+  instead of three ASCII dots.
+
+### Fixed
+
+- **`FrozenError` in eval handlers returning received parts.**
+  `ExpressionEvaluator` no longer mutates the result array with
+  `#map!`, which crashed when a script handler returned the frozen
+  parts array received from the socket.
+- **README:** fixed broken `if /regex/` examples (no implicit `$_`
+  match in `instance_exec`), broken `OMQ.incoming`/`OMQ.outgoing`
+  handler table, and `-P` examples that no longer parsed.
+
 ## 0.12.3 — 2026-04-10
 
 ### Fixed

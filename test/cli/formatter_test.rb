@@ -287,7 +287,7 @@ describe OMQ::CLI::Formatter do
 
     it "truncates long printable frames" do
       preview = OMQ::CLI::Formatter.preview(["abcdefghijklmnop"])
-      assert_equal "(16B) abcdefghijkl...", preview
+      assert_equal "(16B) abcdefghijkl…", preview
     end
 
     it "shows byte length for binary frames" do
@@ -296,7 +296,7 @@ describe OMQ::CLI::Formatter do
 
     it "indicates trailing parts when more than 3" do
       preview = OMQ::CLI::Formatter.preview(["a", "b", "c", "d", "e"])
-      assert_equal "(5B 5F) a|b|c|...", preview
+      assert_equal "(5B 5F) a|b|c|…", preview
     end
   end
 end

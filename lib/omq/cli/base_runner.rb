@@ -99,7 +99,7 @@ module OMQ
 
 
       def attach_endpoints
-        SocketSetup.attach(@sock, config, verbose: config.verbose)
+        SocketSetup.attach(@sock, config, verbose: config.verbose, timestamps: config.timestamps)
       end
 
 
@@ -313,9 +313,15 @@ module OMQ
 
       def send_msg(parts)
         return if parts.empty?
+        log_parts = parts
         parts = [Marshal.dump(parts)] if config.format == :marshal
-        parts = @fmt.compress(parts)
-        @sock.send(parts)
+        if config.compress
+          wire = @fmt.compress(parts)
+          trace_msg(">>", log_parts, wire)
+          @sock.send(wire)
+        else
+          @sock.send(parts)
+        end
         transient_ready!
       end
 
@@ -324,9 +330,21 @@ module OMQ
         raw = @sock.receive
         return nil if raw.nil?
         parts = @fmt.decompress(raw)
+        trace_msg("<<", parts, raw) if config.compress
         parts = Marshal.load(parts.first) if config.format == :marshal
         transient_ready!
         parts
+      end
+
+
+      # Writes an explicit -vvv message trace line. Used when compression
+      # is active: the engine-level monitor would see compressed bytes,
+      # so we log post-decompression (recv) / pre-compression (send)
+      # and annotate the compressed wire size.
+      def trace_msg(marker, parts, wire)
+        return unless config.verbose >= 3
+        wire_size = wire.sum(&:bytesize)
+        $stderr.write("#{Term.log_prefix(config.timestamps)}omq: #{marker} #{Formatter.preview(parts, wire_size: wire_size)}\n")
       end
 
 
@@ -464,10 +482,13 @@ module OMQ
 
       # -vv: log connect/disconnect/retry/timeout events via Socket#monitor
       # -vvv: also log message sent/received traces
-      # -vvvv: also prepend ISO8601 µs-precision timestamps
+      # --timestamps[=s|ms|us]: prepend UTC timestamps to log lines
       def start_event_monitor
-        @sock.monitor(verbose: config.verbose >= 3) do |event|
-          Term.write_event(event, config.verbose)
+        # When compress is on, BaseRunner#trace_msg logs post-
+        # decompression, so we suppress the engine-level message trace.
+        trace = config.verbose >= 3 && !config.compress
+        @sock.monitor(verbose: trace) do |event|
+          Term.write_event(event, config.timestamps)
         end
       end
     end

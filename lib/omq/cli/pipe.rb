@@ -85,8 +85,8 @@ module OMQ
         push = OMQ::PUSH.new(**kwargs)
         SocketSetup.apply_options(pull, config)
         SocketSetup.apply_options(push, config)
-        SocketSetup.attach_endpoints(pull, in_eps, verbose: config.verbose)
-        SocketSetup.attach_endpoints(push, out_eps, verbose: config.verbose)
+        SocketSetup.attach_endpoints(pull, in_eps, verbose: config.verbose, timestamps: config.timestamps)
+        SocketSetup.attach_endpoints(push, out_eps, verbose: config.verbose, timestamps: config.timestamps)
         [pull, push]
       end
 
@@ -196,7 +196,7 @@ module OMQ
         trace = config.verbose >= 3
         [@pull, @push].each do |sock|
           sock.monitor(verbose: trace) do |event|
-            Term.write_event(event, config.verbose)
+            Term.write_event(event, config.timestamps)
           end
         end
       end

@@ -105,15 +105,19 @@ module OMQ
 
 
       # Formats message parts for human-readable preview (logging).
+      # When +wire_size+ is given, the header also shows the
+      # compressed on-the-wire size: "(29B wire=12B)".
       #
-      # @param parts [Array<String>] message frames
+      # @param parts [Array<String>] message frames (decompressed)
+      # @param wire_size [Integer, nil] compressed bytes on the wire
       # @return [String] truncated preview of each frame joined by |
-      def self.preview(parts)
+      def self.preview(parts, wire_size: nil)
         total  = parts.sum(&:bytesize)
         nparts = parts.size
         shown  = parts.first(3).map { |p| preview_frame(p) }
-        tail   = nparts > 3 ? "|..." : ""
-        header = nparts > 1 ? "(#{total}B #{nparts}F)" : "(#{total}B)"
+        tail   = nparts > 3 ? "|…" : ""
+        size   = wire_size ? "#{total}B wire=#{wire_size}B" : "#{total}B"
+        header = nparts > 1 ? "(#{size} #{nparts}F)" : "(#{size})"
 
         "#{header} #{shown.join("|")}#{tail}"
       end
@@ -133,7 +137,7 @@ module OMQ
         if printable < sample.bytesize / 2
           "[#{bytes.bytesize}B]"
         elsif bytes.bytesize > 12
-          "#{sample.gsub(/[^[:print:]]/, ".")}..."
+          "#{sample.gsub(/[^[:print:]]/, ".")}…"
         else
           sample.gsub(/[^[:print:]]/, ".")
         end

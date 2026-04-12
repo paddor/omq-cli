@@ -15,15 +15,18 @@ module OMQ
       module_function
 
 
-      # Returns a stderr log line prefix. At verbose >= 4, prepends an
-      # ISO8601 UTC timestamp with µs precision so log traces become
-      # time-correlatable. Otherwise returns the empty string.
+      # Returns a stderr log line prefix with a UTC ISO8601 timestamp
+      # at the requested precision (:s/:ms/:us), or "" when nil.
       #
-      # @param verbose [Integer]
+      # @param timestamps [Symbol, nil] :s, :ms, :us, or nil (disabled)
       # @return [String]
-      def log_prefix(verbose)
-        return "" unless verbose && verbose >= 4
-        "#{Time.now.utc.strftime("%FT%T.%6N")}Z "
+      def log_prefix(timestamps)
+        case timestamps
+        when nil then ""
+        when :s  then "#{Time.now.utc.strftime("%FT%T")}Z "
+        when :ms then "#{Time.now.utc.strftime("%FT%T.%3N")}Z "
+        when :us then "#{Time.now.utc.strftime("%FT%T.%6N")}Z "
+        end
       end
 
 
@@ -31,10 +34,10 @@ module OMQ
       # trailing newline).
       #
       # @param event [OMQ::MonitorEvent]
-      # @param verbose [Integer]
+      # @param timestamps [Symbol, nil]
       # @return [String]
-      def format_event(event, verbose)
-        prefix = log_prefix(verbose)
+      def format_event(event, timestamps)
+        prefix = log_prefix(timestamps)
         case event.type
         when :message_sent
           "#{prefix}omq: >> #{Formatter.preview(event.detail[:parts])}"
@@ -52,22 +55,22 @@ module OMQ
       #
       # @param kind [:bind, :connect]
       # @param url [String]
-      # @param verbose [Integer]
+      # @param timestamps [Symbol, nil]
       # @return [String]
-      def format_attach(kind, url, verbose)
+      def format_attach(kind, url, timestamps)
         verb = kind == :bind ? "Bound to" : "Connecting to"
-        "#{log_prefix(verbose)}omq: #{verb} #{url}"
+        "#{log_prefix(timestamps)}omq: #{verb} #{url}"
       end
 
 
       # Writes one formatted event line to +io+ (default $stderr).
       #
       # @param event [OMQ::MonitorEvent]
-      # @param verbose [Integer]
+      # @param timestamps [Symbol, nil]
       # @param io [#write] writable sink, default $stderr
       # @return [void]
-      def write_event(event, verbose, io: $stderr)
-        io.write("#{format_event(event, verbose)}\n")
+      def write_event(event, timestamps, io: $stderr)
+        io.write("#{format_event(event, timestamps)}\n")
       end
 
 
@@ -76,11 +79,11 @@ module OMQ
       #
       # @param kind [:bind, :connect]
       # @param url [String]
-      # @param verbose [Integer]
+      # @param timestamps [Symbol, nil]
       # @param io [#write]
       # @return [void]
-      def write_attach(kind, url, verbose, io: $stderr)
-        io.write("#{format_attach(kind, url, verbose)}\n")
+      def write_attach(kind, url, timestamps, io: $stderr)
+        io.write("#{format_attach(kind, url, timestamps)}\n")
       end
     end
   end

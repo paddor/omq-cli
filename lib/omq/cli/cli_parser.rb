@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "socket"
+require "etc"
 
 module OMQ
   module CLI
@@ -231,6 +232,7 @@ module OMQ
         parallel:         nil,
         transient:        false,
         verbose:          0,
+        timestamps:       nil,
         quiet:            false,
         echo:             false,
         scripts:          [],
@@ -246,6 +248,25 @@ module OMQ
       #
       def self.parse(argv)
         new.parse(argv)
+      end
+
+
+      # Splits short-option clusters of the form `-P[digits][letters]`
+      # so OptionParser sees `-P[digits]` followed by `-[letters]`.
+      # Lets `-P0zvv` mean `-P0 -z -v -v` (portable & combinable).
+      # Also rewrites bare `--timestamps` to `--timestamps=ms` so
+      # OptionParser doesn't consume the next positional token as its
+      # argument.
+      #
+      def split_parallel_cluster(argv)
+        argv.flat_map { |a|
+          if a =~ /\A-P(\d*)([a-zA-Z].*)\z/
+            n, rest = $1, $2
+            n.empty? ? ["-P", "-#{rest}"] : ["-P#{n}", "-#{rest}"]
+          else
+            a
+          end
+        }.map { |a| a == "--timestamps" ? "--timestamps=ms" : a }
       end
 
 
@@ -384,8 +405,9 @@ module OMQ
             require "omq" unless defined?(OMQ::VERSION)
             opts[:scripts] << (v == "-" ? :stdin : (v.start_with?("./", "../") ? File.expand_path(v) : v))
           }
-          o.on("-P", "--parallel N", Integer, "Parallel Ractor workers (max 16)") { |v|
-            opts[:parallel] = [v, 16].min
+          o.on("-P", "--parallel [N]", Integer, "Parallel Ractor workers (0 = nproc, max 16)") { |v|
+            n = v.nil? || v.zero? ? Etc.nprocessors : v
+            opts[:parallel] = [n, 16].min
           }
 
           o.separator "\nCURVE encryption (requires system libsodium):"
@@ -397,7 +419,10 @@ module OMQ
           o.separator "            OMQ_CRYPTO (backend: rbnacl or nuckle)"
 
           o.separator "\nOther:"
-          o.on("-v", "--verbose",   "Verbosity: -v endpoints, -vv events, -vvv messages, -vvvv timestamps") { opts[:verbose] += 1 }
+          o.on("-v", "--verbose",   "Verbosity: -v endpoints, -vv events, -vvv messages") { opts[:verbose] += 1 }
+          o.on(      "--timestamps PRECISION", %w[s ms us], "Prefix log lines with UTC timestamp (s/ms/us, default ms)") { |v|
+            opts[:timestamps] = v.to_sym
+          }
           o.on("-q", "--quiet",     "Suppress message output")           { opts[:quiet] = true }
           o.on(      "--transient", "Exit when all peers disconnect")    { opts[:transient] = true }
           o.on(      "--ffi",       "Use libzmq FFI backend (requires omq-ffi gem + system libzmq 4.x)") do
@@ -426,6 +451,8 @@ module OMQ
 
           o.separator "\nExit codes: 0 = success, 1 = error, 2 = timeout"
         end
+
+        argv = split_parallel_cluster(argv)
 
         begin
           parser.parse!(argv)

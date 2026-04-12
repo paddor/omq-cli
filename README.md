@@ -127,8 +127,8 @@ Pipe creates an internal PULL → eval → PUSH pipeline:
 ```sh
 omq pipe -c@work -c@sink -e 'it.map(&:upcase)'
 
-# with Ractor workers for CPU parallelism
-omq pipe -c@work -c@sink -P 4 -r./fib.rb -e 'fib(Integer(it.first)).to_s'
+# with Ractor workers for CPU parallelism (-P0 = nproc)
+omq pipe -c@work -c@sink -P0 -r./fib.rb -e 'fib(Integer(it.first)).to_s'
 ```
 
 The first endpoint is the pull-side (input), the second is the push-side (output).
@@ -171,10 +171,10 @@ omq pull -b tcp://:5557 -e '|(key, value)| "#{key}=#{value}"'
 
 ```sh
 # skip messages matching a pattern
-omq pull -b tcp://:5557 -e 'next if /^#/; it'
+omq pull -b tcp://:5557 -e 'next if it.first.start_with?("#"); it'
 
 # stop on "quit"
-omq pull -b tcp://:5557 -e 'break if /quit/; it'
+omq pull -b tcp://:5557 -e 'break if it.first == "quit"; it'
 ```
 
 ### BEGIN/END blocks
@@ -244,8 +244,8 @@ omq req -c tcp://localhost:5555 -r./handler.rb
 
 | Method | Effect |
 |--------|--------|
-| `OMQ.outgoing { |msg| ... }` | Register outgoing message transform |
-| `OMQ.incoming { |msg| ... }` | Register incoming message transform |
+| `OMQ.outgoing { \|msg\| ... }` | Register outgoing message transform |
+| `OMQ.incoming { \|msg\| ... }` | Register incoming message transform |
 
 - use explicit block variable (like `msg`) or `it`
 - Setup: use local variables and closures at the top of the script
@@ -441,11 +441,11 @@ Pipe creates an in-process PULL → eval → PUSH pipeline:
 # basic pipe (positional: first = input, second = output)
 omq pipe -c@work -c@sink -e 'it.map(&:upcase)'
 
-# parallel Ractor workers (default: all CPUs)
-omq pipe -c@work -c@sink -P -r./fib.rb -e 'fib(Integer(it.first)).to_s'
+# parallel Ractor workers (-P0 = nproc, also combinable: -P0zvv)
+omq pipe -c@work -c@sink -P0 -r./fib.rb -e 'fib(Integer(it.first)).to_s'
 
 # fixed number of workers
-omq pipe -c@work -c@sink -P 4 -e 'it.map(&:upcase)'
+omq pipe -c@work -c@sink -P4 -e 'it.map(&:upcase)'
 
 # exit when producer disconnects
 omq pipe -c@work -c@sink --transient -e 'it.map(&:upcase)'
@@ -467,7 +467,7 @@ omq pipe --in -b tcp://:5555 --out -c@sink1 -c@sink2 -e 'it'
 omq pipe --in -b tcp://:5555 -b tcp://:5556 --out -c tcp://sink:5557 -e 'it'
 
 # parallel workers with fan-in (all must be -c)
-omq pipe --in -c@a -c@b --out -c@sink -P 4 -e 'it'
+omq pipe --in -c@a -c@b --out -c@sink -P4 -e 'it'
 ```
 
 `-P`/`--parallel` requires all endpoints to be `--connect`. In parallel mode, each Ractor worker

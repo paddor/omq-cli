@@ -51,17 +51,32 @@ module OMQ
       def log_endpoints
         return unless @config.verbose >= 1
         @endpoints.each do |ep|
-          @log_port.send(OMQ::CLI::Term.format_attach(ep.bind? ? :bind : :connect, ep.url, @config.verbose))
+          @log_port.send(OMQ::CLI::Term.format_attach(ep.bind? ? :bind : :connect, ep.url, @config.timestamps))
         end
       end
 
 
       def start_monitors
         return unless @config.verbose >= 2
-        trace = @config.verbose >= 3
+        # When compress is on, messages are traced explicitly post-
+        # decompression; suppress engine-level message trace to avoid
+        # showing compressed bytes.
+        trace = @config.verbose >= 3 && !@config.compress
         @sock.monitor(verbose: trace) do |event|
-          @log_port.send(OMQ::CLI::Term.format_event(event, @config.verbose))
+          @log_port.send(OMQ::CLI::Term.format_event(event, @config.timestamps))
         end
+      end
+
+
+      def trace_in(parts, wire)
+        return unless @config.verbose >= 3 && @config.compress
+        @log_port.send("#{OMQ::CLI::Term.log_prefix(@config.timestamps)}omq: << #{OMQ::CLI::Formatter.preview(parts, wire_size: wire.sum(&:bytesize))}")
+      end
+
+
+      def trace_out(parts, wire)
+        return unless @config.verbose >= 3 && @config.compress
+        @log_port.send("#{OMQ::CLI::Term.log_prefix(@config.timestamps)}omq: >> #{OMQ::CLI::Formatter.preview(parts, wire_size: wire.sum(&:bytesize))}")
       end
 
 
@@ -104,9 +119,10 @@ module OMQ
         n = @config.count
         i = 0
         loop do
-          parts = @sock.receive
-          break if parts.nil?
-          parts = @fmt.decompress(parts)
+          wire = @sock.receive
+          break if wire.nil?
+          parts = @fmt.decompress(wire)
+          trace_in(parts, wire)
           if @eval_proc
             parts = normalize(
               @ctx.instance_exec(parts, &@eval_proc)
@@ -129,12 +145,15 @@ module OMQ
         n = @config.count
         i = 0
         loop do
-          parts = @sock.receive
-          break if parts.nil?
-          parts = @fmt.decompress(parts)
+          wire = @sock.receive
+          break if wire.nil?
+          parts = @fmt.decompress(wire)
+          trace_in(parts, wire)
           reply = compute_reply(parts)
           output(reply)
-          @sock.send(@fmt.compress(reply))
+          reply_wire = @fmt.compress(reply)
+          trace_out(reply, reply_wire)
+          @sock.send(reply_wire)
           i += 1
           break if n && n > 0 && i >= n
         end
@@ -166,7 +185,7 @@ module OMQ
 
 
       def normalize(result)
-        OMQ::CLI::ExpressionEvaluator.normalize_result(result)
+        OMQ::CLI::ExpressionEvaluator.normalize_result(result, format: @config.format)
       end
 
 

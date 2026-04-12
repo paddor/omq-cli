@@ -57,6 +57,7 @@ def make_config(type_name:, **overrides)
     parallel:        nil,
     transient:       false,
     verbose:         0,
+    timestamps:      nil,
     quiet:           false,
     echo:            false,
     scripts:         [],

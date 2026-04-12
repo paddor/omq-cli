@@ -51,6 +51,7 @@ module OMQ
       :parallel,
       :transient,
       :verbose,
+      :timestamps,
       :quiet,
       :echo,
       :scripts,

@@ -49,20 +49,23 @@ module OMQ
         return [result] if @format == :marshal
 
         result = result.is_a?(Array) ? result : [result]
-        result.map!(&:to_s)
+        result.map(&:to_s)
       rescue => e
         $stderr.puts "omq: eval error: #{e.message} (#{e.class})"
         exit 3
       end
 
 
-      # Normalises an eval result to nil (skip) or an Array of strings.
+      # Normalises an eval result to nil (skip) or an Array.
       # Used inside Ractor worker blocks where instance methods are unavailable.
+      # When +format+ is :marshal, arbitrary objects are preserved (wrapped
+      # in a one-element Array so the wire path can Marshal.dump them).
       #
-      def self.normalize_result(result)
+      def self.normalize_result(result, format: nil)
         return nil if result.nil?
+        return [result] if format == :marshal
         result = result.is_a?(Array) ? result : [result]
-        result.map!(&:to_s)
+        result.map(&:to_s)
       end
 
 
