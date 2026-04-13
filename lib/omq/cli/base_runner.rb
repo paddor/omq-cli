@@ -207,7 +207,7 @@ module OMQ
         elsif config.data || config.file
           parts = eval_send_expr(read_next)
           send_msg(parts) if parts
-        elsif stdin_ready?
+        elsif stdin_ready? || config.stdin_is_tty
           run_stdin_send(n)
         elsif @send_eval_proc
           parts = eval_send_expr(nil)

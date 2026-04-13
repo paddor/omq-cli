@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.14.6 — 2026-04-14
+
+### Fixed
+
+- **Bare `omq push -c tcp://…` on a terminal no longer exits
+  immediately.** `BaseRunner#run_send_logic` only fell through to
+  `run_stdin_send` when `stdin_ready?` was true, and `stdin_ready?`
+  hard-codes `false` on a tty — so `omq push` / `omq pub` /
+  `omq scatter` / `omq radio` / `omq pair` with no `-d` / `-f` /
+  `-e` / `-I` connected, sent nothing, and disconnected. The
+  elsif now also matches `config.stdin_is_tty`, so an interactive
+  run reads lines from the terminal the way `omq req` and
+  `omq rep` already did.
+
 ## 0.14.5 — 2026-04-14
 
 ### Fixed

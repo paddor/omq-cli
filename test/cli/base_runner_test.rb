@@ -86,6 +86,32 @@ describe "OMQ::CLI::Config" do
 end
 
 
+# -- run_send_logic TTY fallback ------------------------------------
+
+describe "run_send_logic on a TTY with no -d/-f/-e/-I" do
+  it "reads from stdin instead of exiting immediately" do
+    config = make_config(type_name: "push")  # stdin_is_tty: true by default
+    runner = OMQ::CLI::PushRunner.new(config, OMQ::PUSH)
+    runner.instance_variable_set(:@fmt, OMQ::CLI::Formatter.new(:ascii))
+
+    sent = []
+    runner.define_singleton_method(:send_msg) { |parts| sent << parts }
+    runner.define_singleton_method(:eval_send_expr) { |parts| parts }
+
+    orig = $stdin
+    $stdin = StringIO.new("hello\nworld\n")
+
+    begin
+      runner.send(:run_send_logic)
+    ensure
+      $stdin = orig
+    end
+
+    assert_equal [["hello"], ["world"]], sent
+  end
+end
+
+
 # -- read_stdin_input blank-line skipping ---------------------------
 
 describe "read_stdin_input" do
