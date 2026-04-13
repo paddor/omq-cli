@@ -258,6 +258,22 @@ describe OMQ::CLI::Formatter do
         OMQ::CLI::Formatter.preview([nil, :foo, "bar"], format: :marshal)
     end
 
+    it "shows uncompressed size when provided" do
+      assert_equal %q{(135B marshal) [nil, :foo, "bar"]},
+        OMQ::CLI::Formatter.preview([nil, :foo, "bar"], format: :marshal, uncompressed_size: 135)
+    end
+
+    it "shows wire_size alongside uncompressed size" do
+      assert_equal %q{(135B wire=50B marshal) [nil, :foo, "bar"]},
+        OMQ::CLI::Formatter.preview([nil, :foo, "bar"],
+          format: :marshal, uncompressed_size: 135, wire_size: 50)
+    end
+
+    it "omits wire_size when uncompressed_size is missing" do
+      assert_equal %q{(marshal) [nil, :foo, "bar"]},
+        OMQ::CLI::Formatter.preview([nil, :foo, "bar"], format: :marshal, wire_size: 50)
+    end
+
     it "inspects scalar payloads" do
       assert_equal "(marshal) 42",
         OMQ::CLI::Formatter.preview(42, format: :marshal)

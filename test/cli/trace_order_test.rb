@@ -97,8 +97,8 @@ describe "trace_recv ordering at -vvv" do
     $stderr = orig_stderr
 
     output = combined.string
-    assert_includes output, %q{omq: << (marshal) [nil, :foo, "bar"]},
-      "expected marshal-aware trace line in:\n#{output}"
+    assert_match(/omq: << \(\d+B marshal\) \[nil, :foo, "bar"\]/, output,
+      "expected marshal-aware trace line in:\n#{output}")
     # Body is printed via Formatter#encode(:marshal) which inspects
     # the raw object directly (no array-of-frames wrapping).
     assert_includes output, %q{[nil, :foo, "bar"]},
@@ -148,8 +148,8 @@ describe "trace_recv ordering at -vvv" do
     $stderr = orig_stderr
 
     output = combined.string
-    assert_includes output, %q{omq: << (marshal) "foo"},
-      "expected << trace of raw string payload in:\n#{output}"
+    assert_match(/omq: << \(\d+B marshal\) "foo"/, output,
+      "expected << trace of raw string payload in:\n#{output}")
     assert_includes output, '{"foo" => #<Encoding:UTF-8>}',
       "expected eval-transformed hash body in:\n#{output}"
   end

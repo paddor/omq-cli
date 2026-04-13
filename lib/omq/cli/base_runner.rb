@@ -304,9 +304,19 @@ module OMQ
       # may write to stdout (e.g. `-e 'p it'`), and we want the
       # trace line to precede any such output so the sequence on the
       # terminal reads as: trace → eval side-effects → body.
+      #
+      # +@last_recv_wire_size+ is populated by the :message_received
+      # monitor event, which fires *before* the recv queue enqueue
+      # (recv_pump.rb) — so by the time @sock.receive returns here,
+      # the cache reflects this message. +@last_recv_uncompressed+
+      # is captured in #recv_msg from the raw marshal frame size.
       def trace_recv(parts)
         return unless config.verbose >= 3
-        $stderr.write("#{Term.log_prefix(config.timestamps)}omq: << #{Formatter.preview(parts, format: config.format)}\n")
+        preview = Formatter.preview(parts,
+                                    format:            config.format,
+                                    wire_size:         @last_recv_wire_size,
+                                    uncompressed_size: @last_recv_uncompressed)
+        $stderr.write("#{Term.log_prefix(config.timestamps)}omq: << #{preview}\n")
         $stderr.flush
       end
 
@@ -331,8 +341,9 @@ module OMQ
       def send_msg(parts)
         case config.format
         when :marshal
-          trace_send(parts)
-          @sock.send([Marshal.dump(parts)])
+          dumped = Marshal.dump(parts)
+          trace_send(parts, uncompressed_size: dumped.bytesize)
+          @sock.send([dumped])
         else
           return if parts.empty?
           trace_send(parts)
@@ -345,9 +356,19 @@ module OMQ
       # Symmetric to #trace_recv — log the outgoing message *before*
       # Marshal.dump runs, so -M traces show the app-level object
       # (`[nil, :foo, "bar"]`) instead of the wire-side dump bytes.
-      def trace_send(parts)
+      #
+      # +wire_size+ for sends is best-effort: the actual wire encode
+      # happens in the engine's send-pump fiber, so +@last_send_wire_size+
+      # (populated by the :message_sent monitor event) reflects the
+      # *previous* message. When compression ratios are stable that's
+      # still informative; early sends may show no wire= at all.
+      def trace_send(parts, uncompressed_size: nil)
         return unless config.verbose >= 3
-        $stderr.write("#{Term.log_prefix(config.timestamps)}omq: >> #{Formatter.preview(parts, format: config.format)}\n")
+        preview = Formatter.preview(parts,
+                                    format:            config.format,
+                                    wire_size:         @last_send_wire_size,
+                                    uncompressed_size: uncompressed_size)
+        $stderr.write("#{Term.log_prefix(config.timestamps)}omq: >> #{preview}\n")
         $stderr.flush
       end
 
@@ -355,7 +376,11 @@ module OMQ
       def recv_msg
         parts = @sock.receive
         return nil if parts.nil?
-        parts = Marshal.load(parts.first) if config.format == :marshal
+        case config.format
+        when :marshal
+          @last_recv_uncompressed = parts.first.bytesize
+          parts = Marshal.load(parts.first)
+        end
         transient_ready!
         parts
       end
@@ -499,19 +524,29 @@ module OMQ
       #   -vvv also log message sent/received traces
       # --timestamps[=s|ms|us]: prepend UTC timestamps to log lines
       #
-      # :message_received and :message_sent are intentionally skipped
-      # here and traced from BaseRunner#trace_recv / #trace_send
-      # instead — same fiber as the body write, so trace-then-body
+      # :message_received and :message_sent are not *logged* from the
+      # monitor fiber — #trace_recv / #trace_send render them inline
+      # on the same fiber as the body write, so trace-then-body
       # ordering is strict on a shared tty. The monitor-fiber path
       # suffered from $stderr/$stdout buffer races and from dumping
       # wire-side bytes (pre-Marshal.load on recv, post-Marshal.dump
-      # on send) instead of app-level parts.
-      SKIP_MONITOR_EVENTS = %i[message_received message_sent].freeze
+      # on send) instead of app-level parts. We still *observe* these
+      # events here to side-channel the compressed wire_size — for
+      # :message_received the event fires before the recv queue
+      # enqueue (engine/recv_pump.rb), so by the time @sock.receive
+      # returns, @last_recv_wire_size reflects the current message.
       def start_event_monitor
         trace      = config.verbose >= 3
         log_events = config.verbose >= 2
         @sock.monitor(verbose: trace) do |event|
-          Term.write_event(event, config.timestamps) if log_events && !SKIP_MONITOR_EVENTS.include?(event.type)
+          case event.type
+          when :message_received
+            @last_recv_wire_size = event.detail[:wire_size]
+          when :message_sent
+            @last_send_wire_size = event.detail[:wire_size]
+          else
+            Term.write_event(event, config.timestamps) if log_events
+          end
           kill_on_protocol_error(event)
         end
       end

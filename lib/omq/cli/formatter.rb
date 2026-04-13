@@ -103,21 +103,46 @@ module OMQ
       # itself (not an Array of frames); the preview inspects it so
       # the reader sees the actual payload structure (e.g.
       # `[nil, :foo, "bar"]`) instead of a meaningless "1obj" header.
+      # For marshal, +uncompressed_size+ is the Marshal.dump bytesize
+      # (known to the caller, which already serialized for send or
+      # received the wire frame for recv) — passed through instead of
+      # redumping here.
       #
       # @param parts [Array<String, Object>, Object] message frames, or raw object when +format+ is :marshal
       # @param format [Symbol, nil] active CLI format (:marshal enables object-inspect mode)
       # @param wire_size [Integer, nil] compressed bytes on the wire
+      # @param uncompressed_size [Integer, nil] plaintext bytes (marshal only)
       # @return [String] truncated preview of each frame joined by |
-      def self.preview(parts, format: nil, wire_size: nil)
-        if format == :marshal
-          inspected = parts.inspect
-          truncated = inspected.bytesize > 60
-          inspected = inspected.byteslice(0, 60) if truncated
-          out = +"(marshal) #{sanitize(inspected)}"
-          out << "…" if truncated
-          return out
+      def self.preview(parts, format: nil, wire_size: nil, uncompressed_size: nil)
+        case format
+        when :marshal
+          marshal_preview(parts, uncompressed_size: uncompressed_size, wire_size: wire_size)
+        else
+          frames_preview(parts, format: format, wire_size: wire_size)
         end
+      end
 
+
+      def self.marshal_preview(parts, uncompressed_size:, wire_size:)
+        inspected = parts.inspect
+        truncated = inspected.bytesize > 60
+        inspected = inspected.byteslice(0, 60) if truncated
+        body = +sanitize(inspected)
+        body << "…" if truncated
+        header =
+          case
+          when uncompressed_size && wire_size
+            "(#{uncompressed_size}B wire=#{wire_size}B marshal)"
+          when uncompressed_size
+            "(#{uncompressed_size}B marshal)"
+          else
+            "(marshal)"
+          end
+        "#{header} #{body}"
+      end
+
+
+      def self.frames_preview(parts, format:, wire_size:)
         nparts = parts.size
         shown  = parts.first(3).map { |p| preview_frame(p) }
         tail   = nparts > 3 ? "|…" : ""
@@ -131,7 +156,6 @@ module OMQ
             "#{nparts}obj"
           end
         header = nparts > 1 ? "(#{size} #{nparts}F)" : "(#{size})"
-
         "#{header} #{shown.join("|")}#{tail}"
       end
 
