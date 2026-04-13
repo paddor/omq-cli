@@ -148,7 +148,7 @@ module OMQ
       def wait_for_peer
         wait_body = proc do
           @sock.peer_connected.wait
-          log "Peer connected"
+          log "peer connected"
           wait_for_subscriber
           apply_grace_period
         end
@@ -164,7 +164,7 @@ module OMQ
       def wait_for_subscriber
         return unless %w[pub xpub].include?(config.type_name)
         @sock.subscriber_joined.wait
-        log "Subscriber joined"
+        log "subscriber joined"
       end
 
 
@@ -529,7 +529,8 @@ module OMQ
 
 
       def log(msg)
-        $stderr.write("#{msg}\n") if config.verbose >= 1
+        return unless config.verbose >= 1
+        $stderr.write("#{Term.log_prefix(config.timestamps)}omq: #{msg}\n")
       end
 
 

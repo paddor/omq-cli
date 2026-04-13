@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.14.8 — 2026-04-14
+
+### Changed
+
+- **`BaseRunner#log` lines now carry the `omq:` prefix and honor
+  `--timestamps`.** `log "Peer connected"` used to emit a bare
+  `Peer connected` to stderr, while every other stderr line went
+  through `Term` and rendered as `omq: connecting to …`,
+  `omq: disconnected …`, etc. Mixing the two was jarring — a
+  single `omq push` run produced both `omq: connecting to …` and
+  `Peer connected` back-to-back. `#log` now routes through
+  `Term.log_prefix` and emits `{prefix}omq: {msg}`, and the three
+  existing messages are lowercased to match the rest of the
+  stderr vocabulary (`peer connected`, `subscriber joined`,
+  `all peers disconnected, exiting`).
+
 ## 0.14.7 — 2026-04-14
 
 ### Fixed

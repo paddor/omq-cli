@@ -19,7 +19,7 @@ module OMQ
         task.async do
           @barrier.wait
           sock.all_peers_gone.wait unless sock.connection_count == 0
-          log_fn.call("All peers disconnected, exiting")
+          log_fn.call("all peers disconnected, exiting")
           sock.reconnect_enabled = false
           if config.send_only?
             task.stop
