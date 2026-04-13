@@ -8,7 +8,7 @@ module OMQ
     # formatter sees plaintext frames in both directions.
     class Formatter
       # Single empty frame — used as the decoded form of a blank input line.
-      EMPTY_MSG = [::Protocol::ZMTP::Codec::EMPTY_BINARY].freeze
+      EMPTY_MSG = [''.b.freeze].freeze
 
 
       # @param format [Symbol] wire format (:ascii, :quoted, :raw, :jsonl, :msgpack, :marshal)
