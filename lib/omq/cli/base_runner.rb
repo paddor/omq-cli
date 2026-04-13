@@ -207,11 +207,16 @@ module OMQ
         elsif config.data || config.file
           parts = eval_send_expr(read_next)
           send_msg(parts) if parts
-        elsif stdin_ready? || config.stdin_is_tty
+        elsif stdin_ready?
           run_stdin_send(n)
         elsif @send_eval_proc
+          # Pure generator: -e/-E with no stdin input, fire once.
           parts = eval_send_expr(nil)
           send_msg(parts) if parts
+        elsif config.stdin_is_tty
+          # Bare interactive invocation on a terminal: read lines from
+          # the tty until the user hits ^D.
+          run_stdin_send(n)
         end
       end
 

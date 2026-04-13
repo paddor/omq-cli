@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.14.7 — 2026-04-14
+
+### Fixed
+
+- **v0.14.6 regression: `-e`/`-E` pure-generator mode broke on a
+  TTY.** The new `config.stdin_is_tty` fallback was inserted into
+  the same `elsif` as `stdin_ready?`, so a bare `omq push -E '"foo"'`
+  on a terminal routed into `run_stdin_send` instead of firing the
+  generator once. `run_send_logic` now checks `@send_eval_proc`
+  before the TTY fallback, and the fallback is only taken when no
+  other send source is configured. Surfaced by the
+  "marshal send path: PushRunner sends raw object" trace-order
+  test in CI.
+
 ## 0.14.6 — 2026-04-14
 
 ### Fixed
