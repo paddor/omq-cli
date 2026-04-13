@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.14.4 — 2026-04-14
+
+### Fixed
+
+- **`NameError` fixed
+
 ## 0.14.3 — 2026-04-14
 
 ### Fixed
