@@ -49,27 +49,46 @@ module OMQ
           "#{prefix}omq: << ZDICT (#{event.detail[:size]}B)"
         else
           ep     = event.endpoint ? " #{event.endpoint}" : ""
-          detail =
-            if event.detail.is_a?(Hash) && event.detail[:reason]
-              " (#{event.detail[:reason]})"
-            elsif event.detail
-              " #{event.detail}"
-            else
-              ""
-            end
+          detail = format_event_detail(event.detail)
           "#{prefix}omq: #{event.type}#{ep}#{detail}"
         end
       end
 
 
-      # Formats an "attached endpoint" log line (Bound to / Connecting to).
+      # Renders +MonitorEvent#detail+ as a " (...)" suffix for log lines.
+      # Rewrites plain peer-close exceptions (EOFError) to "closed by
+      # peer" — the io-stream library reports these as "Stream finished
+      # before reading enough data!", which is confusing noise for what
+      # is just a normal disconnect.
+      #
+      # @param detail [Hash, Object, nil]
+      # @return [String]
+      def format_event_detail(detail)
+        return "" if detail.nil?
+        return " #{detail}" unless detail.is_a?(Hash)
+
+        error = detail[:error]
+        reason = detail[:reason]
+
+        case error
+        when nil
+          reason ? " (#{reason})" : ""
+        when EOFError
+          " (closed by peer)"
+        else
+          " (#{reason || error.message})"
+        end
+      end
+
+
+      # Formats an "attached endpoint" log line (bound to / connecting to).
       #
       # @param kind [:bind, :connect]
       # @param url [String]
       # @param timestamps [Symbol, nil]
       # @return [String]
       def format_attach(kind, url, timestamps)
-        verb = kind == :bind ? "Bound to" : "Connecting to"
+        verb = kind == :bind ? "bound to" : "connecting to"
         "#{log_prefix(timestamps)}omq: #{verb} #{url}"
       end
 
@@ -85,7 +104,7 @@ module OMQ
       end
 
 
-      # Writes one "Bound to / Connecting to" line to +io+
+      # Writes one "bound to / connecting to" line to +io+
       # (default $stderr).
       #
       # @param kind [:bind, :connect]

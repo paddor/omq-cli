@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.14.3 — 2026-04-14
+
+### Fixed
+
+- **`omq req` (and other interactive senders) no longer wedge on
+  blank input lines.** `Formatter#decode` used to return `[]` for
+  a blank line, which `BaseRunner#send_msg` then silently dropped
+  — so REQ never sent a request but still blocked in `recv_msg`
+  waiting for a reply. Blank lines now decode to a single empty
+  frame (`[""]`) via the new
+  `Formatter::EMPTY_MSG = [Protocol::ZMTP::Codec::EMPTY_BINARY]`
+  constant, so the request actually goes out. As a side effect,
+  ascii/quoted decoding now uses `split("\t", -1)` and preserves
+  trailing empty frames (`"a\t\n"` → `["a", ""]`).
+- **Cleaner `:disconnected` log lines on plain peer close.**
+  `-vv` used to emit `omq: disconnected tcp://… (Stream finished
+  before reading enough data!)` — the raw io-stream message for
+  what is really just an `EOFError` at the ZMTP framing boundary.
+  `Term.format_event` now routes through a new
+  `Term.format_event_detail` helper that rewrites `EOFError` to
+  `(closed by peer)`, leaving other errors' messages untouched.
+  The underlying `event.detail[:error]` is unchanged.
+
+### Changed
+
+- **Lowercased `Term.format_attach` verbs.** `omq: Bound to …` /
+  `omq: Connecting to …` now render as `omq: bound to …` /
+  `omq: connecting to …`, matching the lowercase style already
+  used by every other `omq:` log line (`disconnected`, `listening`,
+  `handshake_succeeded`, …).
+
 ## 0.14.2 — 2026-04-13
 
 ### Changed
