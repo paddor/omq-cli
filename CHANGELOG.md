@@ -1,9 +1,36 @@
 # Changelog
 
-## Unreleased
+## 0.14.0 — 2026-04-13
+
+### Added
+
+- **`-Z` flag for better-ratio compression (zstd level 3).** `-z`
+  remains the fast default (level -3) and `--compress=LEVEL` takes
+  a custom zstd level (e.g. `--compress=19`, `--compress=-1`). Short
+  bundling (`-zvvv`, `-Zvvv`) still works.
+- **`-vvv` logs `ZDICT` exchange.** When the auto-trained dictionary
+  is shipped/received, the trace prints `>> ZDICT (NB)` on the sender
+  and `<< ZDICT (NB)` on the receiver.
+- **`-vvv` wire-size annotation for compressed traces.** Message
+  previews on compressed sockets include the post-compression byte
+  count: `(280B wire=29B) ZZ…`. Plumbed from the ZMTP-Zstd wrapper
+  through the engine's verbose monitor.
 
 ### Changed
 
+- **Compression backend switched from `rlz4` to `omq-rfc-zstd`.**
+  Compression is now a ZMTP wire-protocol extension negotiated via
+  the `X-Compression` READY property and applied below the
+  application API. Auto-trained dictionaries are shipped over a
+  `ZDICT` command frame once the sender has enough samples. The
+  `Formatter` no longer compresses or decompresses anything — it
+  only encodes/decodes wire formats. Pipe `-z` is no longer modal
+  (`compress_in`/`compress_out` removed) since compression is a
+  per-socket, send-side property negotiated with each peer.
+- **`-vvv` output ordering under compression.** At `-vvv`, the
+  monitor fiber now writes both the trace line and the plaintext
+  body, so trace-and-body pairs land on the tty in order instead of
+  interleaving between the recv pump and the app fiber.
 - **TCP host normalization moved into `OMQ::Transport::TCP`.** `omq`
   v0.19.0 now handles `tcp://*:PORT`, `tcp://:PORT`, and
   `tcp://localhost:PORT` natively (including dual-stack `*` binding

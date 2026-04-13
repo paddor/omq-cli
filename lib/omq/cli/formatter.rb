@@ -2,17 +2,14 @@
 
 module OMQ
   module CLI
-    # Raised when LZ4 decompression fails.
-    class DecompressError < RuntimeError; end
-
-    # Handles encoding/decoding messages in the configured format,
-    # plus optional LZ4 compression.
+    # Handles encoding/decoding messages in the configured format.
+    # Compression is handled below the application API by ZMTP-Zstd
+    # (omq-rfc-zstd) once enabled via +socket.compression=+; the
+    # formatter sees plaintext frames in both directions.
     class Formatter
       # @param format [Symbol] wire format (:ascii, :quoted, :raw, :jsonl, :msgpack, :marshal)
-      # @param compress [Boolean] whether to apply LZ4 compression per frame
-      def initialize(format, compress: false)
-        @format   = format
-        @compress = compress
+      def initialize(format)
+        @format = format
       end
 
 
@@ -83,32 +80,11 @@ module OMQ
       end
 
 
-      # Compresses each frame with LZ4 if compression is enabled.
-      #
-      # @param parts [Array<String>] message frames
-      # @return [Array<String>] optionally compressed frames
-      def compress(parts)
-        @compress ? parts.map { |p| RLZ4.compress(p) if p } : parts
-      end
-
-
-      # Decompresses each frame with LZ4 if compression is enabled.
-      # nil/empty frames pass through — they were nil before send coercion.
-      #
-      # @param parts [Array<String>] possibly compressed message frames
-      # @return [Array<String>] decompressed frames
-      def decompress(parts)
-        @compress ? parts.map { |p| p && !p.empty? ? RLZ4.decompress(p) : p } : parts
-      rescue RLZ4::DecompressError
-        raise DecompressError, "decompression failed (did the sender use --compress?)"
-      end
-
-
       # Formats message parts for human-readable preview (logging).
-      # When +wire_size+ is given, the header also shows the
-      # compressed on-the-wire size: "(29B wire=12B)".
+      # When +wire_size+ is given (ZMTP-Zstd negotiated), the header
+      # also shows the compressed on-the-wire size: "(29B wire=12B)".
       #
-      # @param parts [Array<String>] message frames (decompressed)
+      # @param parts [Array<String>] plaintext message frames
       # @param wire_size [Integer, nil] compressed bytes on the wire
       # @return [String] truncated preview of each frame joined by |
       def self.preview(parts, wire_size: nil)

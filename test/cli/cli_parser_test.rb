@@ -446,32 +446,33 @@ describe "OMQ::CLI::CliParser.parse" do
     assert_nil opts[:crypto]
   end
 
-  it "parses --compress as global" do
-    opts = OMQ::CLI::CliParser.parse(["push", "-c", "tcp://x:1", "--compress"])
+  it "parses -z as fast compression (level -3)" do
+    opts = OMQ::CLI::CliParser.parse(["push", "-c", "tcp://x:1", "-z"])
     assert opts[:compress]
-    refute opts[:compress_in]
-    refute opts[:compress_out]
+    assert_equal(-3, opts[:compress_level])
   end
 
-  it "parses --compress after --in as compress_in" do
-    opts = OMQ::CLI::CliParser.parse(["pipe", "--in", "-c", "tcp://x:1", "--compress", "--out", "-c", "tcp://x:2"])
-    refute opts[:compress]
-    assert opts[:compress_in]
-    refute opts[:compress_out]
+  it "parses -Z as better-ratio compression (level 3)" do
+    opts = OMQ::CLI::CliParser.parse(["push", "-c", "tcp://x:1", "-Z"])
+    assert opts[:compress]
+    assert_equal 3, opts[:compress_level]
   end
 
-  it "parses --compress after --out as compress_out" do
-    opts = OMQ::CLI::CliParser.parse(["pipe", "--in", "-c", "tcp://x:1", "--out", "-c", "tcp://x:2", "--compress"])
-    refute opts[:compress]
-    refute opts[:compress_in]
-    assert opts[:compress_out]
+  it "parses --compress=N with a custom level" do
+    opts = OMQ::CLI::CliParser.parse(["push", "-c", "tcp://x:1", "--compress=19"])
+    assert opts[:compress]
+    assert_equal 19, opts[:compress_level]
   end
 
-  it "parses --compress on both sides" do
-    opts = OMQ::CLI::CliParser.parse(["pipe", "--in", "-c", "tcp://x:1", "--compress", "--out", "-c", "tcp://x:2", "--compress"])
-    refute opts[:compress]
-    assert opts[:compress_in]
-    assert opts[:compress_out]
+  it "parses --compress=-1 with a negative level" do
+    opts = OMQ::CLI::CliParser.parse(["push", "-c", "tcp://x:1", "--compress=-1"])
+    assert opts[:compress]
+    assert_equal(-1, opts[:compress_level])
+  end
+
+  it "parses -z in pipe context regardless of --in/--out position" do
+    opts = OMQ::CLI::CliParser.parse(["pipe", "--in", "-c", "tcp://x:1", "-z", "--out", "-c", "tcp://x:2"])
+    assert opts[:compress]
   end
 
   it "parses -r as a deferred script path" do

@@ -125,7 +125,9 @@ module OMQ
 
         -- Compression ----------------------------------------------
 
-          # both sides must use --compress/-z
+          # ZMTP-Zstd is negotiated transparently during the handshake.
+          # Set --compress on either or both sides; if both peers
+          # advertise it, frames are compressed on the wire.
           omq pull --bind tcp://:5557 --compress &
           echo "compressible data" | omq push --connect tcp://localhost:5557 -z
 
@@ -225,8 +227,7 @@ module OMQ
         rcvbuf:           nil,
         conflate:         false,
         compress:         false,
-        compress_in:      false,
-        compress_out:     false,
+        compress_level:   nil,
         send_expr:        nil,
         recv_expr:        nil,
         parallel:         nil,
@@ -386,16 +387,17 @@ module OMQ
           o.on("--conflate", "Keep only last message per subscriber (PUB/RADIO)") { opts[:conflate] = true }
 
           o.separator "\nCompression:"
-          o.on("-z", "--compress", "LZ4 compression per frame (modal with --in/--out)") do
-            require "rlz4"
-            case pipe_side
-            when :in
-              opts[:compress_in] = true
-            when :out
-              opts[:compress_out] = true
-            else
-              opts[:compress] = true
-            end
+          o.on("-z", "Zstd compression (level -3, fast)") do
+            opts[:compress] = true
+            opts[:compress_level] = -3
+          end
+          o.on("-Z", "Zstd compression (level 3, better ratio)") do
+            opts[:compress] = true
+            opts[:compress_level] = 3
+          end
+          o.on("--compress=LEVEL", Integer, "Zstd compression with custom level (e.g. 19, -1)") do |v|
+            opts[:compress] = true
+            opts[:compress_level] = v
           end
 
           o.separator "\nProcessing (-e = incoming, -E = outgoing):"

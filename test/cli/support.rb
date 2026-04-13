@@ -6,7 +6,8 @@ require "json"
 require "stringio"
 
 require "msgpack"
-require "rlz4"
+require "omq"
+require "omq/rfc/zstd"
 
 # Suppress stderr/stdout from abort/puts during validation tests.
 def quietly
@@ -50,8 +51,7 @@ def make_config(type_name:, **overrides)
     rcvbuf:          nil,
     conflate:        false,
     compress:        false,
-    compress_in:     false,
-    compress_out:    false,
+    compress_level:  nil,
     send_expr:       nil,
     recv_expr:       nil,
     parallel:        nil,

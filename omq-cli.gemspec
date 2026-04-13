@@ -13,7 +13,7 @@ Gem::Specification.new do |s|
                   "DEALER/ROUTER, and all draft types). Supports Ruby eval " \
                   "(-e/-E), script handlers (-r), pipe virtual socket with " \
                   "Ractor parallelism, multiple formats (ASCII, JSON Lines, " \
-                  "msgpack, Marshal), LZ4 compression, and CURVE encryption. " \
+                  "msgpack, Marshal), Zstd compression, and CURVE encryption. " \
                   "Like nngcat from libnng, but with Ruby superpowers."
   s.homepage = "https://github.com/paddor/omq-cli"
   s.license  = "ISC"
@@ -31,7 +31,7 @@ Gem::Specification.new do |s|
   s.add_dependency "omq-rfc-scattergather", "~> 0.1"
   s.add_dependency "omq-rfc-channel",       "~> 0.1"
   s.add_dependency "omq-rfc-p2p",           "~> 0.1"
+  s.add_dependency "omq-rfc-zstd",          "~> 0.1"
   s.add_dependency "msgpack"
   s.add_dependency "rbnacl",                "~> 7.0"
-  s.add_dependency "rlz4",                  "~> 0.1"
 end

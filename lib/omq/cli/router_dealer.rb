@@ -25,7 +25,6 @@ module OMQ
             break if parts.nil?
             identity = parts.shift
             parts.shift if parts.first == ""
-            parts = @fmt.decompress(parts)
             result = eval_recv_expr([display_routing_id(identity), *parts])
             output(result)
             i += 1
@@ -36,7 +35,7 @@ module OMQ
 
 
       def send_to_peer(id, parts)
-        @sock.send([id, "", *@fmt.compress(parts)])
+        @sock.send([id, "", *parts])
       end
     end
   end

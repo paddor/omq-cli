@@ -13,7 +13,6 @@ module OMQ
       def send_msg(parts)
         return if parts.empty?
         parts = [Marshal.dump(parts)] if config.format == :marshal
-        parts = @fmt.compress(parts)
         group = config.group || parts.shift
         @sock.publish(group, parts.first || "")
         transient_ready!

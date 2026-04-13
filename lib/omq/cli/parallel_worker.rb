@@ -29,8 +29,6 @@ module OMQ
           compile_expr
           run_loop
           run_end_block
-        rescue DecompressError => e
-          @error_port.send(e.message)
         ensure
           @sock&.close
         end
@@ -43,6 +41,7 @@ module OMQ
       def setup_socket
         @sock = @config.ffi ? OMQ.const_get(@socket_sym).new(backend: :ffi) : OMQ.const_get(@socket_sym).new
         OMQ::CLI::SocketSetup.apply_options(@sock, @config)
+        OMQ::CLI::SocketSetup.apply_compression(@sock, @config.compress, level: @config.compress_level)
         @sock.identity = @config.identity if @config.identity
         OMQ::CLI::SocketSetup.attach_endpoints(@sock, @endpoints, verbose: 0)
       end
@@ -58,25 +57,10 @@ module OMQ
 
       def start_monitors
         return unless @config.verbose >= 2
-        # When compress is on, messages are traced explicitly post-
-        # decompression; suppress engine-level message trace to avoid
-        # showing compressed bytes.
-        trace = @config.verbose >= 3 && !@config.compress
+        trace = @config.verbose >= 3
         @sock.monitor(verbose: trace) do |event|
           @log_port.send(OMQ::CLI::Term.format_event(event, @config.timestamps))
         end
-      end
-
-
-      def trace_in(parts, wire)
-        return unless @config.verbose >= 3 && @config.compress
-        @log_port.send("#{OMQ::CLI::Term.log_prefix(@config.timestamps)}omq: << #{OMQ::CLI::Formatter.preview(parts, wire_size: wire.sum(&:bytesize))}")
-      end
-
-
-      def trace_out(parts, wire)
-        return unless @config.verbose >= 3 && @config.compress
-        @log_port.send("#{OMQ::CLI::Term.log_prefix(@config.timestamps)}omq: >> #{OMQ::CLI::Formatter.preview(parts, wire_size: wire.sum(&:bytesize))}")
       end
 
 
@@ -96,7 +80,7 @@ module OMQ
       def compile_expr
         @begin_proc, @end_proc, @eval_proc =
           OMQ::CLI::ExpressionEvaluator.compile_inside_ractor(@config.recv_expr)
-        @fmt = OMQ::CLI::Formatter.new(@config.format, compress: @config.compress)
+        @fmt = OMQ::CLI::Formatter.new(@config.format)
         @ctx = Object.new
         @ctx.instance_exec(&@begin_proc) if @begin_proc
       end
@@ -119,10 +103,8 @@ module OMQ
         n = @config.count
         i = 0
         loop do
-          wire = @sock.receive
-          break if wire.nil?
-          parts = @fmt.decompress(wire)
-          trace_in(parts, wire)
+          parts = @sock.receive
+          break if parts.nil?
           if @eval_proc
             parts = normalize(
               @ctx.instance_exec(parts, &@eval_proc)
@@ -145,15 +127,11 @@ module OMQ
         n = @config.count
         i = 0
         loop do
-          wire = @sock.receive
-          break if wire.nil?
-          parts = @fmt.decompress(wire)
-          trace_in(parts, wire)
+          parts = @sock.receive
+          break if parts.nil?
           reply = compute_reply(parts)
           output(reply)
-          reply_wire = @fmt.compress(reply)
-          trace_out(reply, reply_wire)
-          @sock.send(reply_wire)
+          @sock.send(reply)
           i += 1
           break if n && n > 0 && i >= n
         end

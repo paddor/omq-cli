@@ -40,9 +40,13 @@ module OMQ
         prefix = log_prefix(timestamps)
         case event.type
         when :message_sent
-          "#{prefix}omq: >> #{Formatter.preview(event.detail[:parts])}"
+          "#{prefix}omq: >> #{Formatter.preview(event.detail[:parts], wire_size: event.detail[:wire_size])}"
         when :message_received
-          "#{prefix}omq: << #{Formatter.preview(event.detail[:parts])}"
+          "#{prefix}omq: << #{Formatter.preview(event.detail[:parts], wire_size: event.detail[:wire_size])}"
+        when :zdict_sent
+          "#{prefix}omq: >> ZDICT (#{event.detail[:size]}B)"
+        when :zdict_received
+          "#{prefix}omq: << ZDICT (#{event.detail[:size]}B)"
         else
           ep     = event.endpoint ? " #{event.endpoint}" : ""
           detail = event.detail ? " #{event.detail}" : ""

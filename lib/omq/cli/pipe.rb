@@ -11,9 +11,8 @@ module OMQ
 
       # @param config [Config] frozen CLI configuration
       def initialize(config)
-        @config  = config
-        @fmt_in  = Formatter.new(config.format, compress: config.compress_in || config.compress)
-        @fmt_out = Formatter.new(config.format, compress: config.compress_out || config.compress)
+        @config = config
+        @fmt    = Formatter.new(config.format)
       end
 
 
@@ -85,6 +84,8 @@ module OMQ
         push = OMQ::PUSH.new(**kwargs)
         SocketSetup.apply_options(pull, config)
         SocketSetup.apply_options(push, config)
+        SocketSetup.apply_compression(pull, config.compress, level: config.compress_level)
+        SocketSetup.apply_compression(push, config.compress, level: config.compress_level)
         SocketSetup.attach_endpoints(pull, in_eps, verbose: config.verbose, timestamps: config.timestamps)
         SocketSetup.attach_endpoints(push, out_eps, verbose: config.verbose, timestamps: config.timestamps)
         [pull, push]
@@ -107,10 +108,9 @@ module OMQ
         loop do
           parts = @pull.receive
           break if parts.nil?
-          parts = @fmt_in.decompress(parts)
           parts = eval_recv_expr(parts)
           if parts && !parts.empty?
-            @push.send(@fmt_out.compress(parts))
+            @push.send(parts)
           end
           # Yield after send so send-pump fibers can drain the queue
           # before the next message is enqueued. Without this, one pump
@@ -163,7 +163,7 @@ module OMQ
       def set_pipe_process_title
         in_eps, out_eps = resolve_endpoints
         title = ["omq pipe"]
-        title << "-z" if config.compress || config.compress_in || config.compress_out
+        title << "-z" if config.compress
         title << "-P#{config.parallel}" if config.parallel
         title.concat(in_eps.map(&:url))
         title << "->"

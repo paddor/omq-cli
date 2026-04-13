@@ -15,7 +15,7 @@ module OMQ
       def initialize(config, socket_class)
         @config = config
         @klass  = socket_class
-        @fmt    = Formatter.new(config.format, compress: config.compress)
+        @fmt    = Formatter.new(config.format)
       end
 
 
@@ -313,38 +313,18 @@ module OMQ
 
       def send_msg(parts)
         return if parts.empty?
-        log_parts = parts
         parts = [Marshal.dump(parts)] if config.format == :marshal
-        if config.compress
-          wire = @fmt.compress(parts)
-          trace_msg(">>", log_parts, wire)
-          @sock.send(wire)
-        else
-          @sock.send(parts)
-        end
+        @sock.send(parts)
         transient_ready!
       end
 
 
       def recv_msg
-        raw = @sock.receive
-        return nil if raw.nil?
-        parts = @fmt.decompress(raw)
-        trace_msg("<<", parts, raw) if config.compress
+        parts = @sock.receive
+        return nil if parts.nil?
         parts = Marshal.load(parts.first) if config.format == :marshal
         transient_ready!
         parts
-      end
-
-
-      # Writes an explicit -vvv message trace line. Used when compression
-      # is active: the engine-level monitor would see compressed bytes,
-      # so we log post-decompression (recv) / pre-compression (send)
-      # and annotate the compressed wire size.
-      def trace_msg(marker, parts, wire)
-        return unless config.verbose >= 3
-        wire_size = wire.sum(&:bytesize)
-        $stderr.write("#{Term.log_prefix(config.timestamps)}omq: #{marker} #{Formatter.preview(parts, wire_size: wire_size)}\n")
       end
 
 
@@ -408,6 +388,10 @@ module OMQ
 
       def output(parts)
         return if config.quiet || parts.nil?
+        # At -vvv, the monitor fiber owns both the trace and the body
+        # output (see start_event_monitor). Skipping the app-side write
+        # avoids interleaving between the two fibers on a shared tty.
+        return if config.verbose >= 3
         $stdout.write(@fmt.encode(parts))
         $stdout.flush
       end
@@ -484,11 +468,16 @@ module OMQ
       # -vvv: also log message sent/received traces
       # --timestamps[=s|ms|us]: prepend UTC timestamps to log lines
       def start_event_monitor
-        # When compress is on, BaseRunner#trace_msg logs post-
-        # decompression, so we suppress the engine-level message trace.
-        trace = config.verbose >= 3 && !config.compress
+        trace = config.verbose >= 3
         @sock.monitor(verbose: trace) do |event|
           Term.write_event(event, config.timestamps)
+          # At -vvv, also write the plaintext body to stdout from this
+          # same fiber so the trace line and body land on the tty in
+          # order (see BaseRunner#output).
+          if trace && event.type == :message_received && !config.quiet
+            $stdout.write(@fmt.encode(event.detail[:parts]))
+            $stdout.flush
+          end
         end
       end
     end

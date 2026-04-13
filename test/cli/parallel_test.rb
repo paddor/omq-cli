@@ -70,7 +70,7 @@ describe "pull -P parallel execution" do
     io_thread.join
   end
 
-  it "decompresses messages from parallel workers" do
+  it "round-trips wire-compressed messages through parallel workers" do
     url    = ipc_url("pull-parallel-z")
     n_msgs = 10
 
@@ -88,11 +88,11 @@ describe "pull -P parallel execution" do
     io_thread = Thread.new do
       Sync do
         src = OMQ::PUSH.new
-        src.linger = 1
+        src.linger      = 1
+        src.compression = OMQ::RFC::Zstd::Compression.auto
         src.bind(url)
         src.peer_connected.wait
-        fmt = OMQ::CLI::Formatter.new(:ascii, compress: true)
-        n_msgs.times { |i| src.send(fmt.compress(["msg-#{i}"])) }
+        n_msgs.times { |i| src.send(["msg-#{i}"]) }
       ensure
         src&.close
       end

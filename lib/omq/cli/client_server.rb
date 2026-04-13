@@ -25,8 +25,7 @@ module OMQ
           parts = recv_msg_raw
           break if parts.nil?
           routing_id = parts.shift
-          body       = @fmt.decompress(parts)
-          break unless handle_server_request(routing_id, body)
+          break unless handle_server_request(routing_id, parts)
           i += 1
           break if n && n > 0 && i >= n
         end
@@ -37,15 +36,15 @@ module OMQ
         if config.recv_expr || @recv_eval_proc
           reply = eval_recv_expr(body)
           output([display_routing_id(routing_id), *(reply || [""])])
-          @sock.send_to(routing_id, @fmt.compress(reply || [""]).first)
+          @sock.send_to(routing_id, (reply || [""]).first)
         elsif config.echo
           output([display_routing_id(routing_id), *body])
-          @sock.send_to(routing_id, @fmt.compress(body).first || "")
+          @sock.send_to(routing_id, body.first || "")
         elsif config.data || config.file || !config.stdin_is_tty
           reply = read_next
           return false unless reply
           output([display_routing_id(routing_id), *body])
-          @sock.send_to(routing_id, @fmt.compress(reply).first || "")
+          @sock.send_to(routing_id, reply.first || "")
         end
         true
       end
@@ -66,7 +65,6 @@ module OMQ
             parts = recv_msg_raw
             break if parts.nil?
             routing_id = parts.shift
-            parts      = @fmt.decompress(parts)
             result = eval_recv_expr([display_routing_id(routing_id), *parts])
             output(result)
             i += 1
@@ -77,7 +75,7 @@ module OMQ
 
 
       def send_to_peer(id, parts)
-        @sock.send_to(id, @fmt.compress(parts).first || "")
+        @sock.send_to(id, parts.first || "")
       end
     end
   end

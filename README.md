@@ -348,8 +348,16 @@ omq pull -b tcp://:5557 -t 5
 
 ## Compression
 
-Both sides must use `--compress` (`-z`). Uses LZ4 frame format, provided
-by the `rlz4` gem (Ractor-safe, Rust extension via `lz4_flex`).
+Set `--compress` (`-z`) on either or both sides. The flag enables
+ZMTP-Zstd (provided by `omq-rfc-zstd`), a wire-protocol extension
+that negotiates Zstandard compression during the ZMTP handshake via
+an `X-Compression` READY metadata field. If both peers advertise it,
+each side compresses its outgoing frames; if only one side does, the
+connection stays plaintext (no error). The extension uses the
+auto-trained dictionary mode: the sender feeds the first messages
+into a dictionary trainer, ships the trained dictionary over a
+ZDICT command frame, then switches to dict-bound compression for
+the rest of the connection.
 
 ```sh
 omq push -c tcp://remote:5557 -z < data.txt

@@ -209,62 +209,6 @@ describe OMQ::CLI::Formatter do
     end
   end
 
-  # -- Compression -------------------------------------------------
-
-  describe "compression" do
-    it "passes through when disabled" do
-      fmt   = OMQ::CLI::Formatter.new(:ascii)
-      parts = ["hello", "world"]
-      assert_same parts, fmt.compress(parts)
-      assert_same parts, fmt.decompress(parts)
-    end
-
-    it "round-trips with compression enabled" do
-      fmt        = OMQ::CLI::Formatter.new(:ascii, compress: true)
-      parts      = ["hello", "world"]
-      compressed = fmt.compress(parts)
-      refute_equal parts, compressed
-      assert_equal parts, fmt.decompress(compressed)
-    end
-
-    it "compresses large data" do
-      fmt   = OMQ::CLI::Formatter.new(:ascii, compress: true)
-      big   = ["x" * 10_000]
-      small = fmt.compress(big)
-      assert_operator small.first.bytesize, :<, big.first.bytesize
-      assert_equal big, fmt.decompress(small)
-    end
-
-    it "compress passes nil parts through" do
-      fmt    = OMQ::CLI::Formatter.new(:ascii, compress: true)
-      parts  = ["hello", nil, "world"]
-      result = fmt.compress(parts)
-      assert_equal "hello", fmt.decompress([result[0]]).first
-      assert_nil result[1]
-      assert_equal "world", fmt.decompress([result[2]]).first
-    end
-
-    it "decompress passes empty frames through" do
-      fmt        = OMQ::CLI::Formatter.new(:ascii, compress: true)
-      compressed = fmt.compress(["hello", "world"])
-      with_empty = [compressed[0], "", compressed[1]]
-      result     = fmt.decompress(with_empty)
-      assert_equal "hello", result[0]
-      assert_equal "",      result[1]
-      assert_equal "world", result[2]
-    end
-
-    it "round-trips with nil parts (nil → compress → send → recv → decompress → empty)" do
-      fmt        = OMQ::CLI::Formatter.new(:ascii, compress: true)
-      parts      = ["hello", nil, "world"]
-      compressed = fmt.compress(parts)
-      # simulate Writable coercing nil → ""
-      on_wire    = compressed.map { |p| p || "" }
-      result     = fmt.decompress(on_wire)
-      assert_equal ["hello", "", "world"], result
-    end
-  end
-
   # -- Preview -----------------------------------------------------
 
   describe "preview" do

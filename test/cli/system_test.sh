@@ -207,23 +207,49 @@ check "-F reads from file" "from file" "$(cat $TMPDIR/file_out.txt)"
 
 # -- Compression (-z) -----------------------------------------------
 
-if bundle exec ruby -e 'require "rlz4"' 2>>"$STDERR_LOG"; then
-  echo "Compression:"
-  U=$(ipc)
-  PAYLOAD=$(ruby -e "puts 'x' * 200")
-  $OMQ pull -b $U -n 1 -z $T > $TMPDIR/compress_out.txt 2>>"$STDERR_LOG" &
-  echo "$PAYLOAD" | $OMQ push -c $U -z $T 2>>"$STDERR_LOG"
-  wait
-  check "compression round-trip" "$PAYLOAD" "$(cat $TMPDIR/compress_out.txt)"
+echo "Compression:"
+U=$(ipc)
+PAYLOAD=$(ruby -e "puts 'x' * 200")
+$OMQ pull -b $U -n 1 -z $T > $TMPDIR/compress_out.txt 2>>"$STDERR_LOG" &
+echo "$PAYLOAD" | $OMQ push -c $U -z $T 2>>"$STDERR_LOG"
+wait
+check "compression round-trip" "$PAYLOAD" "$(cat $TMPDIR/compress_out.txt)"
 
-  echo "Compression (small):"
-  U=$(ipc)
-  $OMQ pull -b $U -n 1 -z $T > $TMPDIR/compress_small_out.txt 2>>"$STDERR_LOG" &
-  echo 'tiny' | $OMQ push -c $U -z $T 2>>"$STDERR_LOG"
-  wait
-  check "compression round-trip (small)" "tiny" "$(cat $TMPDIR/compress_small_out.txt)"
+echo "Compression (small):"
+U=$(ipc)
+$OMQ pull -b $U -n 1 -z $T > $TMPDIR/compress_small_out.txt 2>>"$STDERR_LOG" &
+echo 'tiny' | $OMQ push -c $U -z $T 2>>"$STDERR_LOG"
+wait
+check "compression round-trip (small)" "tiny" "$(cat $TMPDIR/compress_small_out.txt)"
+
+# -- Verbose wire size (-z -vvv) ------------------------------------
+# 1000 Zs should compress to far less than 1000 bytes; both sides
+# must log wire=NB with N < 1000.
+
+echo "Compression wire size trace:"
+U=$(ipc)
+PAYLOAD=$(ruby -e "print 'Z' * 1000")
+PULL_LOG="$TMPDIR/wire_pull.log"
+PUSH_LOG="$TMPDIR/wire_push.log"
+$OMQ pull -b $U -n 1 -z -vvv $T > $TMPDIR/wire_out.txt 2>"$PULL_LOG" &
+printf '%s' "$PAYLOAD" | $OMQ push -c $U -z -vvv $T 2>"$PUSH_LOG"
+wait
+
+PUSH_WIRE=$(grep -oE 'wire=[0-9]+B' "$PUSH_LOG" | head -1 | grep -oE '[0-9]+' || echo "")
+PULL_WIRE=$(grep -oE 'wire=[0-9]+B' "$PULL_LOG" | head -1 | grep -oE '[0-9]+' || echo "")
+
+if [ -n "$PUSH_WIRE" ] && [ "$PUSH_WIRE" -lt 1000 ]; then
+  pass "push -vvv logs wire=${PUSH_WIRE}B < 1000"
 else
-  echo "Compression: skipped (rlz4 not installed)"
+  fail "push -vvv wire size" "<1000" "$PUSH_WIRE"
+  cat "$PUSH_LOG" >&2
+fi
+
+if [ -n "$PULL_WIRE" ] && [ "$PULL_WIRE" -lt 1000 ]; then
+  pass "pull -vvv logs wire=${PULL_WIRE}B < 1000"
+else
+  fail "pull -vvv wire size" "<1000" "$PULL_WIRE"
+  cat "$PULL_LOG" >&2
 fi
 
 # -- Interval sending (-i) ------------------------------------------
@@ -670,53 +696,25 @@ fi
 kill $PF_PIPE_PID 2>/dev/null || true
 wait 2>/dev/null || true
 
-# -- Pipe: modal --compress (--in uncompressed, --out compressed) ----
+# -- Pipe -z (compressed pipe with compressed peers) ----------------
 
-echo "Pipe modal compression:"
+echo "Pipe -z:"
 ZC_SRC="ipc://@omq_zc_src_$$"
 ZC_DST="ipc://@omq_zc_dst_$$"
-# Pipe: input is plain, output is compressed.
-$OMQ pipe --in -c $ZC_SRC --out --compress -c $ZC_DST --reconnect-ivl 0.1 -t 10 2>>"$STDERR_LOG" &
+$OMQ pipe --in -c $ZC_SRC --out -c $ZC_DST -z --reconnect-ivl 0.1 -t 10 2>>"$STDERR_LOG" &
 ZC_PIPE_PID=$!
 sleep 0.3
 
-# Source sends plain (no --compress).
-seq 3 | $OMQ push -b $ZC_SRC -t 5 2>>"$STDERR_LOG"
-sleep 0.3
-
-# Sink receives with --compress (decompresses output from pipe).
-$OMQ pull -b $ZC_DST --compress -n 3 -t 5 > $TMPDIR/zc_out.txt 2>>"$STDERR_LOG" &
+$OMQ pull -b $ZC_DST -z -n 3 -t 5 > $TMPDIR/zc_out.txt 2>>"$STDERR_LOG" &
 ZC_C_PID=$!
+seq 3 | $OMQ push -b $ZC_SRC -z -t 5 2>>"$STDERR_LOG"
 if wait $ZC_C_PID 2>/dev/null; then
   ZC_CONTENT=$(cat $TMPDIR/zc_out.txt | tr '\n' ',')
-  check "pipe --out --compress: plain in, compressed out" "1,2,3," "$ZC_CONTENT"
+  check "pipe -z end-to-end" "1,2,3," "$ZC_CONTENT"
 else
-  fail "pipe --out --compress: plain in, compressed out" "3 messages" "timeout"
+  fail "pipe -z end-to-end" "3 messages" "timeout"
 fi
 kill $ZC_PIPE_PID 2>/dev/null || true
-wait 2>/dev/null || true
-
-# Reverse: input compressed, output plain.
-ZD_SRC="ipc://@omq_zd_src_$$"
-ZD_DST="ipc://@omq_zd_dst_$$"
-$OMQ pipe --in --compress -c $ZD_SRC --out -c $ZD_DST --reconnect-ivl 0.1 -t 10 2>>"$STDERR_LOG" &
-ZD_PIPE_PID=$!
-sleep 0.3
-
-# Source sends compressed.
-seq 3 | $OMQ push -b $ZD_SRC --compress -t 5 2>>"$STDERR_LOG"
-sleep 0.3
-
-# Sink receives plain (no --compress).
-$OMQ pull -b $ZD_DST -n 3 -t 5 > $TMPDIR/zd_out.txt 2>>"$STDERR_LOG" &
-ZD_C_PID=$!
-if wait $ZD_C_PID 2>/dev/null; then
-  ZD_CONTENT=$(cat $TMPDIR/zd_out.txt | tr '\n' ',')
-  check "pipe --in --compress: compressed in, plain out" "1,2,3," "$ZD_CONTENT"
-else
-  fail "pipe --in --compress: compressed in, plain out" "3 messages" "timeout"
-fi
-kill $ZD_PIPE_PID 2>/dev/null || true
 wait 2>/dev/null || true
 
 # -- Parallel pull (-P) ----------------------------------------------

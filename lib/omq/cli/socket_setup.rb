@@ -22,6 +22,14 @@ module OMQ
       # it entirely with --recv-maxsz 0.
       DEFAULT_RECV_MAXSZ = 1 << 20
 
+      # Enables ZMTP-Zstd compression on +sock+ (auto-trained
+      # dictionary). No-op when +enabled+ is false.
+      def self.apply_compression(sock, enabled, level: nil)
+        return unless enabled
+        sock.compression = level ? OMQ::RFC::Zstd::Compression.auto(level: level) : OMQ::RFC::Zstd::Compression.auto
+      end
+
+
       # Apply common socket options from +config+ to +sock+.
       #
       def self.apply_options(sock, config)
@@ -53,6 +61,7 @@ module OMQ
           end
         sock.identity         = config.identity   if config.identity
         sock.router_mandatory = true if config.type_name == "router"
+        apply_compression(sock, config.compress, level: config.compress_level)
         sock
       end
 
