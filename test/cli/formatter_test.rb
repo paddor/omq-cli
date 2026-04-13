@@ -38,10 +38,9 @@ describe OMQ::CLI::Formatter do
       assert_equal ["frame1", "frame2"], @fmt.decode("frame1\tframe2\n")
     end
 
-    it "decodes blank line as single empty frame" do
-      assert_equal [""], @fmt.decode("\n")
-      assert_equal [""], @fmt.decode("")
-      assert_same OMQ::CLI::Formatter::EMPTY_MSG, @fmt.decode("\n")
+    it "decodes blank line as empty array" do
+      assert_equal [], @fmt.decode("\n")
+      assert_equal [], @fmt.decode("")
     end
 
     it "preserves trailing empty frames" do
@@ -120,9 +119,8 @@ describe OMQ::CLI::Formatter do
       assert_equal binary, decoded
     end
 
-    it "decodes blank line as single empty frame" do
-      assert_equal [""], @fmt.decode("\n")
-      assert_same OMQ::CLI::Formatter::EMPTY_MSG, @fmt.decode("\n")
+    it "decodes blank line as empty array" do
+      assert_equal [], @fmt.decode("\n")
     end
   end
 

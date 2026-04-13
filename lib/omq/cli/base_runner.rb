@@ -418,8 +418,17 @@ module OMQ
           data = $stdin.read
           data.nil? || data.empty? ? nil : [data]
         else
-          line = $stdin.gets
-          line.nil? ? nil : @fmt.decode(line)
+          # Skip blank input lines — they are a no-op "wait for next
+          # line" rather than a zero-frame message. Stops REQ from
+          # wedging in recv after an accidental Enter on a tty, and
+          # stops PUSH/etc. from silently dropping the iteration via
+          # send_msg's `return if parts.empty?` guard.
+          loop do
+            line = $stdin.gets
+            return nil if line.nil?
+            next if line.chomp.empty?
+            return @fmt.decode(line)
+          end
         end
       end
 

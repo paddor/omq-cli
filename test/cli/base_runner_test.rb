@@ -84,3 +84,54 @@ describe "OMQ::CLI::Config" do
     refute make_config(type_name: "push").recv_only?
   end
 end
+
+
+# -- read_stdin_input blank-line skipping ---------------------------
+
+describe "read_stdin_input" do
+  def make_runner(format: :ascii)
+    config = make_config(type_name: "push", format: format)
+    runner = OMQ::CLI::PushRunner.new(config, OMQ::PUSH)
+    runner.instance_variable_set(:@fmt, OMQ::CLI::Formatter.new(format))
+    runner
+  end
+
+
+  it "skips blank lines and returns the next non-blank line" do
+    runner = make_runner
+    orig = $stdin
+    $stdin = StringIO.new("\n\n\nhello\tworld\n")
+
+    begin
+      assert_equal ["hello", "world"], runner.send(:read_stdin_input)
+    ensure
+      $stdin = orig
+    end
+  end
+
+
+  it "returns nil on EOF after only blank lines" do
+    runner = make_runner
+    orig = $stdin
+    $stdin = StringIO.new("\n\n\n")
+
+    begin
+      assert_nil runner.send(:read_stdin_input)
+    ensure
+      $stdin = orig
+    end
+  end
+
+
+  it "preserves trailing empty frames on a non-blank line" do
+    runner = make_runner
+    orig = $stdin
+    $stdin = StringIO.new("a\t\n")
+
+    begin
+      assert_equal ["a", ""], runner.send(:read_stdin_input)
+    ensure
+      $stdin = orig
+    end
+  end
+end

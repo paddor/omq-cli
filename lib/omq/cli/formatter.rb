@@ -7,10 +7,6 @@ module OMQ
     # (omq-rfc-zstd) once enabled via +socket.compression=+; the
     # formatter sees plaintext frames in both directions.
     class Formatter
-      # Single empty frame — used as the decoded form of a blank input line.
-      EMPTY_MSG = [''.b.freeze].freeze
-
-
       # @param format [Symbol] wire format (:ascii, :quoted, :raw, :jsonl, :msgpack, :marshal)
       def initialize(format)
         @format = format
@@ -49,11 +45,9 @@ module OMQ
       def decode(line)
         case @format
         when :ascii, :marshal
-          parts = line.chomp.split("\t", -1)
-          parts.empty? ? EMPTY_MSG : parts
+          line.chomp.split("\t", -1)
         when :quoted
-          parts = line.chomp.split("\t", -1).map { |p| "\"#{p}\"".undump }
-          parts.empty? ? EMPTY_MSG : parts
+          line.chomp.split("\t", -1).map { |p| "\"#{p}\"".undump }
         when :raw
           [line]
         when :jsonl

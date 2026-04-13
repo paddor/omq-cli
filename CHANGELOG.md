@@ -1,10 +1,31 @@
 # Changelog
 
+## 0.14.5 — 2026-04-14
+
+### Fixed
+
+- **Blank stdin lines are now a no-op instead of a zero-frame
+  "message".** 0.14.3 decoded a blank line to `[""]` so that REQ
+  would actually send *something* and not wedge in `recv_msg`.
+  That was the wrong shape of fix — on a tty, hitting Enter on an
+  empty prompt should behave like a shell's empty prompt and just
+  wait for the next line, not fire off an empty ZMTP frame to the
+  peer. `BaseRunner#read_stdin_input` now loops past blank lines
+  for the ascii/quoted/jsonl paths; decode goes back to returning
+  `[]` for a blank line and `Formatter::EMPTY_MSG` is gone. REQ
+  still cannot wedge because the blank line is never seen by
+  `run_loop` at all. `split("\t", -1)` / trailing-empty-frame
+  preservation is kept.
+
 ## 0.14.4 — 2026-04-14
 
 ### Fixed
 
-- **`NameError` fixed
+- **`NameError` on load when requiring `omq/cli/formatter` without
+  `protocol/zmtp` already loaded.** 0.14.3 introduced
+  `Formatter::EMPTY_MSG = [::Protocol::ZMTP::Codec::EMPTY_BINARY]`
+  at class-body load time, which blew up with `uninitialized
+  constant Protocol` in the release gem.
 
 ## 0.14.3 — 2026-04-14
 
