@@ -21,6 +21,16 @@ ensure
   $stdout = orig_stdout
 end
 
+
+# Silence stderr only (keep $stdout intact for tests that assert on it).
+def silence_stderr
+  orig = $stderr
+  $stderr = StringIO.new
+  yield
+ensure
+  $stderr = orig
+end
+
 # Helper to build a minimal Config for unit tests.
 def make_config(type_name:, **overrides)
   defaults = {
