@@ -4,6 +4,14 @@
 
 ### Changed
 
+- `Formatter.marshal_preview` and `Formatter.frames_preview` (extracted
+  from `Formatter.preview` in the `-vvv` marshal trace work) are now
+  `private_class_method` — they were only ever meant to be called
+  through `Formatter.preview` but ended up on the public class surface.
+- Dropped a redundant unary `+` before `Formatter.sanitize(...)` in
+  `marshal_preview`: `sanitize` already returns a fresh mutable String
+  via `.tr`, so the `+""` dup was dead weight.
+
 - **`-vvv` marshal trace headers now show plaintext and wire byte
   sizes.** Previously `<< (marshal) ...` carried no size info; it
   now renders as `(135B marshal) ...` and, when ZMTP-Zstd

@@ -127,19 +127,22 @@ module OMQ
         inspected = parts.inspect
         truncated = inspected.bytesize > 60
         inspected = inspected.byteslice(0, 60) if truncated
-        body = +sanitize(inspected)
+        body      = sanitize(inspected)
+
         body << "…" if truncated
-        header =
-          case
-          when uncompressed_size && wire_size
-            "(#{uncompressed_size}B wire=#{wire_size}B marshal)"
-          when uncompressed_size
-            "(#{uncompressed_size}B marshal)"
-          else
-            "(marshal)"
-          end
+
+        header = case
+                 when uncompressed_size && wire_size
+                   "(#{uncompressed_size}B wire=#{wire_size}B marshal)"
+                 when uncompressed_size
+                   "(#{uncompressed_size}B marshal)"
+                 else
+                   "(marshal)"
+                 end
+
         "#{header} #{body}"
       end
+      private_class_method :marshal_preview
 
 
       def self.frames_preview(parts, format:, wire_size:)
@@ -158,6 +161,7 @@ module OMQ
         header = nparts > 1 ? "(#{size} #{nparts}F)" : "(#{size})"
         "#{header} #{shown.join("|")}#{tail}"
       end
+      private_class_method :frames_preview
 
 
       # Renders one frame or decoded object for {Formatter.preview}.

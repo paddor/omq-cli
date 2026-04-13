@@ -376,11 +376,13 @@ module OMQ
       def recv_msg
         parts = @sock.receive
         return nil if parts.nil?
+
         case config.format
         when :marshal
           @last_recv_uncompressed = parts.first.bytesize
           parts = Marshal.load(parts.first)
         end
+
         transient_ready!
         parts
       end
