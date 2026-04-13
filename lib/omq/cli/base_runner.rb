@@ -141,7 +141,21 @@ module OMQ
 
 
       def needs_peer_wait?
-        !config.recv_only? && (config.connects.any? || config.type_name == "router")
+        return false if config.recv_only?
+        return true if config.connects.any?
+        return true if config.type_name == "router"
+
+        # Bind-mode senders with a bounded or scheduled send plan:
+        # wait for the first peer so a one-shot `-d` / `-E` doesn't
+        # just queue into HWM and then exit before anyone is
+        # listening. Interactive stdin still goes through unwaited
+        # so typing isn't gated on a peer.
+        config.binds.any? && bounded_or_scheduled_send?
+      end
+
+
+      def bounded_or_scheduled_send?
+        config.interval || config.data || config.file || @send_eval_proc
       end
 
 
@@ -205,14 +219,18 @@ module OMQ
         if config.interval
           run_interval_send(n)
         elsif config.data || config.file
+          # One-shot from -d/-f. --count N fires the same payload N times.
           parts = eval_send_expr(read_next)
-          send_msg(parts) if parts
+          (n && n > 0 ? n : 1).times { send_msg(parts) } if parts
         elsif stdin_ready?
           run_stdin_send(n)
         elsif @send_eval_proc
-          # Pure generator: -e/-E with no stdin input, fire once.
-          parts = eval_send_expr(nil)
-          send_msg(parts) if parts
+          # Pure generator: -e/-E with no stdin input. Fire once by
+          # default, --count N fires N times.
+          (n && n > 0 ? n : 1).times do
+            parts = eval_send_expr(nil)
+            send_msg(parts) if parts
+          end
         elsif config.stdin_is_tty
           # Bare interactive invocation on a terminal: read lines from
           # the tty until the user hits ^D.

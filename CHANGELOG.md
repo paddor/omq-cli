@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.14.9 — 2026-04-14
+
+### Fixed
+
+- **Bind-mode one-shot senders now wait for a peer before firing.**
+  `omq push -b tcp://:5050 -ME '"foo"*3'` used to bind, queue the
+  message into HWM, close the socket, and exit — frequently before
+  any PULL had even connected, surfacing as a mysterious
+  linger-timeout on exit. `needs_peer_wait?` now also returns true
+  for bind-mode senders whose send plan is bounded or scheduled
+  (`-d` / `-f` / `-E` / `-i`), so the runner blocks on
+  `peer_connected.wait` before sending and then drains cleanly via
+  linger on close. Interactive stdin is unchanged — typing isn't
+  gated on a peer.
+- **`--count N` now works with `-d` / `-f` / `-E` one-shot sends.**
+  Previously only `-i` / stdin respected `--count`; a pure-generator
+  run fired exactly once regardless. The `-d`/`-f` and `-E` branches
+  in `run_send_logic` now loop `n` times (default 1).
+
+### Changed
+
+- **`--examples` output is ASCII-only and tightened up.** Replaced
+  the two em-dashes in the Marshal section with ASCII parentheses,
+  added a note to the Pipe section explaining that `@work` /
+  `@sink` are Linux abstract-namespace unix sockets
+  (`ipc://@name`), Linux-only, and to fall back to `ipc:///tmp/…`
+  on macOS/BSD. Marshal and Compression prose trimmed from
+  paragraph form to 2-3 line summaries.
+
 ## 0.14.8 — 2026-04-14
 
 ### Changed
