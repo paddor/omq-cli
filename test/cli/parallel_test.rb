@@ -43,7 +43,7 @@ describe "pull -P parallel execution" do
       type_name: "pull",
       endpoints: [OMQ::CLI::Endpoint.new(url, false)],
       parallel:  2,
-      timeout:   0.5,
+      timeout:   0.15,
       count:     n_msgs,
       quiet:     true,
     )
@@ -74,7 +74,7 @@ describe "pull -P parallel execution" do
       endpoints: [OMQ::CLI::Endpoint.new(url, false)],
       parallel:  2,
       compress:  true,
-      timeout:   0.5,
+      timeout:   0.15,
       count:     n_msgs,
     )
 
@@ -134,7 +134,7 @@ describe "pull -P with oversized frames" do
           src.bind(url)
           src.peer_connected.wait
           src.send(["x" * 1024])
-          sleep 0.5
+          sleep 0.15
         ensure
           src&.close
         end
@@ -171,7 +171,7 @@ describe "pipe with oversized frames" do
           sink.bind(out_url)
           src.peer_connected.wait
           src.send(["x" * 1024])
-          sleep 0.5
+          sleep 0.15
         ensure
           src&.close
           sink&.close
@@ -216,7 +216,7 @@ describe "pipe with oversized frames" do
           sink.bind(out_url)
           src.peer_connected.wait
           src.send(["x" * 1024])
-          sleep 0.5
+          sleep 0.15
         ensure
           src&.close
           sink&.close
@@ -242,7 +242,7 @@ describe "rep -P parallel execution" do
       endpoints: [OMQ::CLI::Endpoint.new(url, false)],
       parallel:  2,
       echo:      true,
-      timeout:   0.5,
+      timeout:   0.15,
       count:     n_reqs,
       quiet:     true,
     )
@@ -286,14 +286,14 @@ describe "pipe -P parallel execution" do
       out_endpoints: [OMQ::CLI::Endpoint.new(results_url, false)],
       parallel:      2,
       recv_expr:     FIB_EXPR,
-      timeout:       1,
+      timeout:       0.3,
     )
 
     io_thread = Thread.new do
       Sync do
         src  = OMQ::PUSH.new(linger: 1)
         src.bind(work_url)
-        sink = OMQ::PULL.new(linger: 0, recv_timeout: 1)
+        sink = OMQ::PULL.new(linger: 0, recv_timeout: 0.3)
         sink.bind(results_url)
 
         src.peer_connected.wait
@@ -324,14 +324,14 @@ describe "pipe -P parallel execution" do
       out_endpoints: [OMQ::CLI::Endpoint.new(results_url, false)],
       parallel:      2,
       recv_expr:     expr,
-      timeout:       1,
+      timeout:       0.3,
     )
 
     io_thread = Thread.new do
       Sync do
         src  = OMQ::PUSH.new(linger: 1)
         src.bind(work_url)
-        sink = OMQ::PULL.new(linger: 0, recv_timeout: 2)
+        sink = OMQ::PULL.new(linger: 0, recv_timeout: 0.5)
         sink.bind(results_url)
 
         src.peer_connected.wait
