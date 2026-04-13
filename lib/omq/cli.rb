@@ -97,8 +97,8 @@ module OMQ
       end
     rescue Errno::ENOENT
       puts text
-    rescue Errno::EPIPE
-      # user quit pager early
+    rescue Errno::EPIPE, Interrupt
+      # user quit pager early (q) or hit ^C while paging
     end
 
 

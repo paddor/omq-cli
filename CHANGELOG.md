@@ -18,6 +18,9 @@
   Previously only `-i` / stdin respected `--count`; a pure-generator
   run fired exactly once regardless. The `-d`/`-f` and `-E` branches
   in `run_send_logic` now loop `n` times (default 1).
+- **`^C` while paging `--examples` is quiet.** Hitting ^C in the
+  pager used to leak an `Interrupt` stack trace from `IO.popen`;
+  `CLI.page` now rescues `Interrupt` alongside `Errno::EPIPE`.
 
 ### Changed
 
