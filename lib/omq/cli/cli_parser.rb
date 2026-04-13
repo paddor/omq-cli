@@ -75,10 +75,15 @@ module OMQ
           | PUSH |-------->| pipe |-------->| PULL |
           +------+         +------+         +------+
 
+          # @work / @sink below are Linux abstract-namespace unix
+          # sockets (ipc://@name) -- no path on disk, cleaned up
+          # automatically. Linux only. Use ipc:///tmp/work etc.
+          # on macOS/BSD.
+
           # terminal 1: producer
           echo -e "hello\nworld" | omq push -b@work
 
-          # terminal 2: worker -- uppercase each message
+          # terminal 2: worker (uppercase each message)
           omq pipe -c@work -c@sink -e 'it.map(&:upcase)'
           # terminal 3: collector
           omq pull -b@sink
@@ -89,10 +94,10 @@ module OMQ
           # exit when producer disconnects (--transient)
           omq pipe -c@work -c@sink --transient -e 'it.map(&:upcase)'
 
-          # fan-in: multiple sources -> one sink
+          # fan-in (multiple sources -> one sink)
           omq pipe --in -c@work1 -c@work2 --out -c@sink -e 'it.map(&:upcase)'
 
-          # fan-out: one source -> multiple sinks (round-robin)
+          # fan-out (one source -> multiple sinks, round-robin)
           omq pipe --in -b tcp://:5555 --out -c@sink1 -c@sink2 -e 'it'
 
         -- CLIENT / SERVER (draft) ----------------------------------
@@ -125,15 +130,13 @@ module OMQ
 
         -- Marshal (arbitrary Ruby objects) -------------------------
 
-          # With -M, each message on the wire is one Marshal-dumped
-          # Ruby object. Inside -e/-E, `it` is that raw object — not
-          # an Array of frames — so you can send/receive scalars,
-          # hashes, custom classes, whatever Marshal handles.
+          # -M: each message is one Marshal-dumped Ruby object.
+          # Inside -e/-E, `it` is the raw object (not an Array).
 
-          # send a bare string, receive a { string => encoding } hash
-          omq push -b tcp://:5557 -ME '"foo"'
-          omq pull -c tcp://:5557 -Mvvv -e '{it => it.encoding}'
-          # output: {"foo" => #<Encoding:UTF-8>}
+          # send a bare string; receiver transforms it to { string => encoding } hash
+          omq push -b tcp://:5557 -ME '"foo" * 3'
+          omq pull -c tcp://:5557 -Me '{it => it.encoding}'
+          # output: {"foofoofoo" => #<Encoding:UTF-8>}
 
           # -vvv traces render the app object, not wire bytes
           omq push -b tcp://:5557 -ME '{now: Time.now, pid: Process.pid}' -vvv
@@ -141,11 +144,9 @@ module OMQ
 
         -- Compression ----------------------------------------------
 
-          # ZMTP-Zstd is negotiated transparently during the handshake.
-          # Receive-capable sockets (pull, sub, rep, ...) advertise the
-          # profile by default in passive mode: they decode compressed
-          # frames from an active sender but never compress their own
-          # outgoing frames. Use -z / -Z on the sender to opt it in.
+          # ZMTP-Zstd is negotiated during the handshake.
+          # Recv sockets advertise it passively by default.
+          # Use -z on the sender to compress outgoing frames.
           omq pull --bind tcp://:5557 &
           echo "compressible data" | omq push --connect tcp://localhost:5557 -z
 
