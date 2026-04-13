@@ -84,8 +84,8 @@ module OMQ
         push = OMQ::PUSH.new(**kwargs)
         SocketSetup.apply_options(pull, config)
         SocketSetup.apply_options(push, config)
-        SocketSetup.apply_compression(pull, config.compress, level: config.compress_level)
-        SocketSetup.apply_compression(push, config.compress, level: config.compress_level)
+        SocketSetup.apply_compression(pull, config, "pull")
+        SocketSetup.apply_compression(push, config, "push")
         SocketSetup.attach_endpoints(pull, in_eps, verbose: config.verbose, timestamps: config.timestamps)
         SocketSetup.attach_endpoints(push, out_eps, verbose: config.verbose, timestamps: config.timestamps)
         [pull, push]

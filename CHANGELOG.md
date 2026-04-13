@@ -4,6 +4,16 @@
 
 ### Added
 
+- **Receive-capable sockets decompress by default.** All socket types
+  except pure senders (`push`, `pub`, `scatter`, `radio`) now advertise
+  the ZMTP-Zstd profile in **passive mode** at startup, so they accept
+  compressed frames from any active-sender peer without requiring
+  `-z` on the receive side. They never compress their own outgoing
+  frames in this mode — use `-z` / `-Z` / `--compress=LEVEL` on the
+  sender to opt it in. A `push` piped into a `pull` with no flags on
+  either side stays uncompressed; `omq push -z | omq pull` compresses
+  on the wire and the pull side decodes transparently. This is the
+  RFC Sec. 6.4 "Passive senders" mode; requires omq-rfc-zstd >= 0.1.0.
 - **`-Z` flag for better-ratio compression (zstd level 3).** `-z`
   remains the fast default (level -3) and `--compress=LEVEL` takes
   a custom zstd level (e.g. `--compress=19`, `--compress=-1`). Short

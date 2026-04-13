@@ -126,9 +126,11 @@ module OMQ
         -- Compression ----------------------------------------------
 
           # ZMTP-Zstd is negotiated transparently during the handshake.
-          # Set --compress on either or both sides; if both peers
-          # advertise it, frames are compressed on the wire.
-          omq pull --bind tcp://:5557 --compress &
+          # Receive-capable sockets (pull, sub, rep, ...) advertise the
+          # profile by default in passive mode: they decode compressed
+          # frames from an active sender but never compress their own
+          # outgoing frames. Use -z / -Z on the sender to opt it in.
+          omq pull --bind tcp://:5557 &
           echo "compressible data" | omq push --connect tcp://localhost:5557 -z
 
         -- CURVE Encryption -----------------------------------------

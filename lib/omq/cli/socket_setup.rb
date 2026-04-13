@@ -22,11 +22,37 @@ module OMQ
       # it entirely with --recv-maxsz 0.
       DEFAULT_RECV_MAXSZ = 1 << 20
 
-      # Enables ZMTP-Zstd compression on +sock+ (auto-trained
-      # dictionary). No-op when +enabled+ is false.
-      def self.apply_compression(sock, enabled, level: nil)
-        return unless enabled
-        sock.compression = level ? OMQ::RFC::Zstd::Compression.auto(level: level) : OMQ::RFC::Zstd::Compression.auto
+      # Socket types that never receive application data. These opt
+      # out of the default passive-compression behavior -- they would
+      # otherwise advertise a profile and wrap every outgoing frame in
+      # a 4-byte uncompressed sentinel for no benefit, since there's
+      # nothing to decompress in return.
+      PURE_SEND_TYPES = %w[push pub scatter radio].freeze
+
+
+      # Installs ZMTP-Zstd compression on +sock+ based on +type_name+
+      # and the explicit flags in +config+. Three outcomes:
+      #
+      # * +config.compress+ is true --> active compression (auto-dict).
+      #   Outgoing frames are compressed; incoming are decoded.
+      # * +config.compress+ is false and +type_name+ can receive -->
+      #   passive compression (RFC Sec. 6.4). The socket advertises the
+      #   profile so an active peer can compress on the wire and we can
+      #   decode it, but we never compress our own outgoing frames.
+      # * +config.compress+ is false and +type_name+ is in
+      #   +PURE_SEND_TYPES+ --> no compression. Pure senders have no
+      #   incoming traffic to decompress, so passive mode is pure
+      #   overhead on outgoing.
+      #
+      # Callers pass +type_name+ explicitly (rather than reading it off
+      # +config+) so the pipe runners can install different modes on
+      # their push/pull ends of a single pipe.
+      def self.apply_compression(sock, config, type_name)
+        if config.compress
+          sock.compression = OMQ::RFC::Zstd::Compression.auto(level: config.compress_level || -3)
+        elsif !PURE_SEND_TYPES.include?(type_name)
+          sock.compression = OMQ::RFC::Zstd::Compression.auto(passive: true)
+        end
       end
 
 
@@ -61,7 +87,7 @@ module OMQ
           end
         sock.identity         = config.identity   if config.identity
         sock.router_mandatory = true if config.type_name == "router"
-        apply_compression(sock, config.compress, level: config.compress_level)
+        apply_compression(sock, config, config.type_name)
         sock
       end
 

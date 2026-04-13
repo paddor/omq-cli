@@ -40,8 +40,8 @@ module OMQ
         @push = OMQ::PUSH.new(**kwargs)
         OMQ::CLI::SocketSetup.apply_options(@pull, @config)
         OMQ::CLI::SocketSetup.apply_options(@push, @config)
-        OMQ::CLI::SocketSetup.apply_compression(@pull, @config.compress, level: @config.compress_level)
-        OMQ::CLI::SocketSetup.apply_compression(@push, @config.compress, level: @config.compress_level)
+        OMQ::CLI::SocketSetup.apply_compression(@pull, @config, "pull")
+        OMQ::CLI::SocketSetup.apply_compression(@push, @config, "push")
         OMQ::CLI::SocketSetup.attach_endpoints(@pull, @in_eps, verbose: 0)
         OMQ::CLI::SocketSetup.attach_endpoints(@push, @out_eps, verbose: 0)
       end
