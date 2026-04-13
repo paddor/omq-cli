@@ -223,27 +223,18 @@ wait
 check "compression round-trip (small)" "tiny" "$(cat $TMPDIR/compress_small_out.txt)"
 
 # -- Verbose wire size (-z -vvv) ------------------------------------
-# 1000 Zs should compress to far less than 1000 bytes; both sides
+# 1000 Zs should compress to far less than 1000 bytes; the pull side
 # must log wire=NB with N < 1000.
 
 echo "Compression wire size trace:"
 U=$(ipc)
 PAYLOAD=$(ruby -e "print 'Z' * 1000")
 PULL_LOG="$TMPDIR/wire_pull.log"
-PUSH_LOG="$TMPDIR/wire_push.log"
 $OMQ pull -b $U -n 1 -z -vvv $T > $TMPDIR/wire_out.txt 2>"$PULL_LOG" &
-printf '%s' "$PAYLOAD" | $OMQ push -c $U -z -vvv $T 2>"$PUSH_LOG"
+printf '%s' "$PAYLOAD" | $OMQ push -c $U -z $T 2>>"$STDERR_LOG"
 wait
 
-PUSH_WIRE=$(grep -oE 'wire=[0-9]+B' "$PUSH_LOG" | head -1 | grep -oE '[0-9]+' || echo "")
 PULL_WIRE=$(grep -oE 'wire=[0-9]+B' "$PULL_LOG" | head -1 | grep -oE '[0-9]+' || echo "")
-
-if [ -n "$PUSH_WIRE" ] && [ "$PUSH_WIRE" -lt 1000 ]; then
-  pass "push -vvv logs wire=${PUSH_WIRE}B < 1000"
-else
-  fail "push -vvv wire size" "<1000" "$PUSH_WIRE"
-  cat "$PUSH_LOG" >&2
-fi
 
 if [ -n "$PULL_WIRE" ] && [ "$PULL_WIRE" -lt 1000 ]; then
   pass "pull -vvv logs wire=${PULL_WIRE}B < 1000"

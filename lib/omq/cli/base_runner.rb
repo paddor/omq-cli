@@ -353,15 +353,14 @@ module OMQ
       end
 
 
-      # Symmetric to #trace_recv — log the outgoing message *before*
-      # Marshal.dump runs, so -M traces show the app-level object
-      # (`[nil, :foo, "bar"]`) instead of the wire-side dump bytes.
-      #
-      # +wire_size+ for sends is best-effort: the actual wire encode
-      # happens in the engine's send-pump fiber, so +@last_send_wire_size+
-      # (populated by the :message_sent monitor event) reflects the
-      # *previous* message. When compression ratios are stable that's
-      # still informative; early sends may show no wire= at all.
+      # Symmetric to #trace_recv — log the outgoing message using the
+      # pre-Marshal.dump +parts+, so -M traces show the app-level
+      # object (`[nil, :foo, "bar"]`) instead of the wire-side dump
+      # bytes. +@last_send_wire_size+ is best-effort: it reflects the
+      # *previous* message (populated by the :message_sent monitor
+      # event, which fires on a separate fiber after the pump writes),
+      # so early sends may show no `wire=` at all. Receive-side tracing
+      # is the authoritative path for observing wire bytes.
       def trace_send(parts, uncompressed_size: nil)
         return unless config.verbose >= 3
         preview = Formatter.preview(parts,
