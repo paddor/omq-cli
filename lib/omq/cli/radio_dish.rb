@@ -11,10 +11,16 @@ module OMQ
 
 
       def send_msg(parts)
-        return if parts.empty?
-        parts = [Marshal.dump(parts)] if config.format == :marshal
-        group = config.group || parts.shift
-        @sock.publish(group, parts.first || "")
+        case config.format
+        when :marshal
+          trace_send(parts)
+          @sock.publish(config.group || "", Marshal.dump(parts))
+        else
+          return if parts.empty?
+          trace_send(parts)
+          group = config.group || parts.shift
+          @sock.publish(group, parts.first || "")
+        end
         transient_ready!
       end
     end

@@ -123,6 +123,22 @@ module OMQ
           # multipart via tabs
           printf "routing-key\tpayload" | omq push --connect tcp://localhost:5557
 
+        -- Marshal (arbitrary Ruby objects) -------------------------
+
+          # With -M, each message on the wire is one Marshal-dumped
+          # Ruby object. Inside -e/-E, `it` is that raw object — not
+          # an Array of frames — so you can send/receive scalars,
+          # hashes, custom classes, whatever Marshal handles.
+
+          # send a bare string, receive a { string => encoding } hash
+          omq push -b tcp://:5557 -ME '"foo"'
+          omq pull -c tcp://:5557 -Mvvv -e '{it => it.encoding}'
+          # output: {"foo" => #<Encoding:UTF-8>}
+
+          # -vvv traces render the app object, not wire bytes
+          omq push -b tcp://:5557 -ME '{now: Time.now, pid: Process.pid}' -vvv
+          # >> (marshal) {now: 2026-04-13 ..., pid: 12345}
+
         -- Compression ----------------------------------------------
 
           # ZMTP-Zstd is negotiated transparently during the handshake.
@@ -344,7 +360,7 @@ module OMQ
           o.on(      "--raw",     "Raw binary, no framing")                     { opts[:format] = :raw }
           o.on("-J", "--jsonl",   "JSON Lines (array of strings per line)")     { opts[:format] = :jsonl }
           o.on(      "--msgpack",  "MessagePack arrays (binary stream)")         { require "msgpack"; opts[:format] = :msgpack }
-          o.on("-M", "--marshal", "Ruby Marshal stream (binary, Array<String>)") { opts[:format] = :marshal }
+          o.on("-M", "--marshal", "Ruby Marshal stream (one arbitrary object per message)") { opts[:format] = :marshal }
 
           o.separator "\nSubscription/groups:"
           o.on("-s", "--subscribe PREFIX", "Subscribe prefix (SUB, default all)")     { |v| opts[:subscribes] << v }

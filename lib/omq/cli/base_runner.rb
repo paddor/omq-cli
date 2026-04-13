@@ -266,6 +266,7 @@ module OMQ
           loop do
             parts = recv_msg
             break if parts.nil?
+            trace_recv(parts)
             parts = eval_recv_expr(parts)
             output(parts)
             i += 1
@@ -292,9 +293,21 @@ module OMQ
           @recv_tick_eof = true
           return 0
         end
+        trace_recv(parts)
         parts = eval_recv_expr(parts)
         output(parts)
         1
+      end
+
+
+      # At -vvv, log the received message *before* eval runs. Eval
+      # may write to stdout (e.g. `-e 'p it'`), and we want the
+      # trace line to precede any such output so the sequence on the
+      # terminal reads as: trace → eval side-effects → body.
+      def trace_recv(parts)
+        return unless config.verbose >= 3
+        $stderr.write("#{Term.log_prefix(config.timestamps)}omq: << #{Formatter.preview(parts, format: config.format)}\n")
+        $stderr.flush
       end
 
 
@@ -316,10 +329,26 @@ module OMQ
 
 
       def send_msg(parts)
-        return if parts.empty?
-        parts = [Marshal.dump(parts)] if config.format == :marshal
-        @sock.send(parts)
+        case config.format
+        when :marshal
+          trace_send(parts)
+          @sock.send([Marshal.dump(parts)])
+        else
+          return if parts.empty?
+          trace_send(parts)
+          @sock.send(parts)
+        end
         transient_ready!
+      end
+
+
+      # Symmetric to #trace_recv — log the outgoing message *before*
+      # Marshal.dump runs, so -M traces show the app-level object
+      # (`[nil, :foo, "bar"]`) instead of the wire-side dump bytes.
+      def trace_send(parts)
+        return unless config.verbose >= 3
+        $stderr.write("#{Term.log_prefix(config.timestamps)}omq: >> #{Formatter.preview(parts, format: config.format)}\n")
+        $stderr.flush
       end
 
 
@@ -392,10 +421,6 @@ module OMQ
 
       def output(parts)
         return if config.quiet || parts.nil?
-        # At -vvv, the monitor fiber owns both the trace and the body
-        # output (see start_event_monitor). Skipping the app-side write
-        # avoids interleaving between the two fibers on a shared tty.
-        return if config.verbose >= 3
         $stdout.write(@fmt.encode(parts))
         $stdout.flush
       end
@@ -473,15 +498,20 @@ module OMQ
       #   -vv  log connect/disconnect/retry/timeout events
       #   -vvv also log message sent/received traces
       # --timestamps[=s|ms|us]: prepend UTC timestamps to log lines
+      #
+      # :message_received and :message_sent are intentionally skipped
+      # here and traced from BaseRunner#trace_recv / #trace_send
+      # instead — same fiber as the body write, so trace-then-body
+      # ordering is strict on a shared tty. The monitor-fiber path
+      # suffered from $stderr/$stdout buffer races and from dumping
+      # wire-side bytes (pre-Marshal.load on recv, post-Marshal.dump
+      # on send) instead of app-level parts.
+      SKIP_MONITOR_EVENTS = %i[message_received message_sent].freeze
       def start_event_monitor
-        trace        = config.verbose >= 3
-        log_events   = config.verbose >= 2
+        trace      = config.verbose >= 3
+        log_events = config.verbose >= 2
         @sock.monitor(verbose: trace) do |event|
-          Term.write_event(event, config.timestamps) if log_events
-          if trace && event.type == :message_received && !config.quiet
-            $stdout.write(@fmt.encode(event.detail[:parts]))
-            $stdout.flush
-          end
+          Term.write_event(event, config.timestamps) if log_events && !SKIP_MONITOR_EVENTS.include?(event.type)
           kill_on_protocol_error(event)
         end
       end

@@ -46,7 +46,7 @@ module OMQ
         result = context.instance_exec(parts, &@eval_proc)
         return nil  if result.nil?
         return SENT if result.equal?(context)
-        return [result] if @format == :marshal
+        return result if @format == :marshal
 
         result = result.is_a?(Array) ? result : [result]
         result.map(&:to_s)
@@ -56,14 +56,16 @@ module OMQ
       end
 
 
-      # Normalises an eval result to nil (skip) or an Array.
+      # Normalises an eval result to nil (skip), an Array (text formats),
+      # or an arbitrary Ruby object (+:marshal+).
+      #
       # Used inside Ractor worker blocks where instance methods are unavailable.
-      # When +format+ is :marshal, arbitrary objects are preserved (wrapped
-      # in a one-element Array so the wire path can Marshal.dump them).
+      # When +format+ is :marshal, the raw result is passed through — the
+      # wire path will Marshal.dump it into a single frame.
       #
       def self.normalize_result(result, format: nil)
         return nil if result.nil?
-        return [result] if format == :marshal
+        return result if format == :marshal
         result = result.is_a?(Array) ? result : [result]
         result.map(&:to_s)
       end

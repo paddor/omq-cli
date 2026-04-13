@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require_relative "support"
-require "securerandom"
 
 # -- Parallel execution (-P) ------------------------------------------
 #
@@ -12,10 +11,6 @@ require "securerandom"
 #
 FIB_EXPR = "n=Integer(it.first);a,b=0,1;n.times{a,b=b,a+b};[a.to_s]".freeze
 FIB_1_10 = [1, 1, 2, 3, 5, 8, 13, 21, 34, 55].freeze
-
-
-# Unique IPC abstract address per call to avoid cross-test interference.
-def ipc_url(label) = "ipc://@omq-test-#{label}-#{SecureRandom.hex(4)}"
 
 
 # Run PipeRunner in a dedicated thread so Ractor#join doesn't block the

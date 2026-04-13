@@ -312,7 +312,7 @@ OMQ.outgoing { |msg| [*msg, Time.now.iso8601] }
 | `--raw` | Raw ZMTP binary (pipe to `hexdump -C` for debugging) |
 | `-J` / `--jsonl` | JSON Lines — `["frame1","frame2"]` per line |
 | `--msgpack` | MessagePack arrays (binary stream) |
-| `-M` / `--marshal` | Ruby Marshal (binary stream of `Array<String>` objects) |
+| `-M` / `--marshal` | Ruby Marshal — one arbitrary Ruby object per message |
 
 Multipart messages: in ASCII/quoted mode, frames are tab-separated. In JSONL mode,
 each message is a JSON array.
@@ -325,6 +325,20 @@ printf "key\tvalue" | omq push -c tcp://localhost:5557
 echo '["key","value"]' | omq push -c tcp://localhost:5557 -J
 omq pull -b tcp://:5557 -J
 ```
+
+Under `-M`, each wire frame is one Marshal-dumped Ruby object. Inside `-e` / `-E`,
+`it` is that raw object — not an Array of frames — so scalars, hashes, custom
+classes, or any Marshal-safe value flow through transparently:
+
+```sh
+# send a bare String, receive a { string => encoding } Hash
+omq push -b tcp://:5557 -ME '"foo"'
+omq pull -c tcp://:5557 -M -e '{it => it.encoding}'
+# => {"foo" => #<Encoding:UTF-8>}
+```
+
+At `-vvv`, trace lines for `-M` render the app-level object instead of wire
+bytes: `omq: >> (marshal) [nil, :foo, "bar"]`.
 
 ## Timing
 

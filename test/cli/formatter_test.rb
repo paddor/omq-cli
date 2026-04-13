@@ -243,4 +243,65 @@ describe OMQ::CLI::Formatter do
       assert_equal "(5B 5F) a|b|c|…", preview
     end
   end
+
+  # -- Marshal-aware preview ---------------------------------------
+  #
+  # With -M, a "message" on the wire is a single Marshal-dumped frame
+  # wrapping one arbitrary Ruby object. The default preview header
+  # ("(1obj)") is useless because the frame count never reflects the
+  # actual payload shape. The +format: :marshal+ mode unwraps the
+  # outer one-element array and inspects the inner object so the
+  # reader sees the real payload.
+  describe "preview with format: :marshal" do
+    it "inspects an array payload" do
+      assert_equal %q{(marshal) [nil, :foo, "bar"]},
+        OMQ::CLI::Formatter.preview([nil, :foo, "bar"], format: :marshal)
+    end
+
+    it "inspects scalar payloads" do
+      assert_equal "(marshal) 42",
+        OMQ::CLI::Formatter.preview(42, format: :marshal)
+      assert_equal "(marshal) :hello",
+        OMQ::CLI::Formatter.preview(:hello, format: :marshal)
+      assert_equal "(marshal) nil",
+        OMQ::CLI::Formatter.preview(nil, format: :marshal)
+    end
+
+    it "inspects string payloads (no array wrapping)" do
+      assert_equal '(marshal) "foo"',
+        OMQ::CLI::Formatter.preview("foo", format: :marshal)
+    end
+
+    it "inspects hash payloads" do
+      assert_equal '(marshal) {a: 1, b: 2}',
+        OMQ::CLI::Formatter.preview({ a: 1, b: 2 }, format: :marshal)
+    end
+
+    it "truncates long inspected payloads" do
+      preview = OMQ::CLI::Formatter.preview("x" * 200, format: :marshal)
+      assert_equal %Q{(marshal) "#{"x" * 59}…}.b, preview.b
+    end
+
+    it "sanitizes newlines/tabs in the inspected form" do
+      # Shouldn't actually appear — String#inspect already escapes —
+      # but defense-in-depth: a custom #inspect could leak raw control
+      # chars and break the single-line guarantee.
+      obj = Object.new
+      def obj.inspect = "line1\nline2\tend"
+      preview = OMQ::CLI::Formatter.preview(obj, format: :marshal)
+      refute_includes preview, "\n"
+      refute_includes preview, "\t"
+      assert_match(/line1\\nline2\\tend/, preview)
+    end
+  end
+
+  describe "encode with :marshal" do
+    it "inspects the raw Ruby object (not an array of frames)" do
+      fmt = OMQ::CLI::Formatter.new(:marshal)
+      assert_equal %Q{"foo"\n},       fmt.encode("foo")
+      assert_equal %Q{[1, 2, 3]\n},   fmt.encode([1, 2, 3])
+      assert_equal "{\"foo\" => #<Encoding:UTF-8>}\n",
+        fmt.encode({ "foo" => Encoding::UTF_8 })
+    end
+  end
 end

@@ -32,7 +32,8 @@ module OMQ
         when :msgpack
           MessagePack.pack(parts)
         when :marshal
-          parts.map(&:inspect).join("\t") + "\n"
+          # Under -M, `parts` is a single Ruby object (not a frame array).
+          parts.inspect + "\n"
         end
       end
 
@@ -80,26 +81,74 @@ module OMQ
       end
 
 
+      # Whitespace/backslash → visible escape sequence used by
+      # {Formatter.sanitize}. Everything else outside printable ASCII
+      # collapses to '.' via a single String#tr call.
+      LINE_ESCAPES = {
+        "\t" => '\\t',
+        "\n" => '\\n',
+        "\r" => '\\r',
+        "\\" => '\\\\',
+      }.freeze
+
+
       # Formats message parts for human-readable preview (logging).
       # When +wire_size+ is given (ZMTP-Zstd negotiated), the header
       # also shows the compressed on-the-wire size: "(29B wire=12B)".
+      # Accepts either wire-side Array<String> (monitor events) or
+      # post-decode app parts that may contain non-String objects
+      # (e.g. -M Marshal.load output).
       #
-      # @param parts [Array<String>] plaintext message frames
+      # When +format+ is +:marshal+, +parts+ is the raw Ruby object
+      # itself (not an Array of frames); the preview inspects it so
+      # the reader sees the actual payload structure (e.g.
+      # `[nil, :foo, "bar"]`) instead of a meaningless "1obj" header.
+      #
+      # @param parts [Array<String, Object>, Object] message frames, or raw object when +format+ is :marshal
+      # @param format [Symbol, nil] active CLI format (:marshal enables object-inspect mode)
       # @param wire_size [Integer, nil] compressed bytes on the wire
       # @return [String] truncated preview of each frame joined by |
-      def self.preview(parts, wire_size: nil)
-        total  = parts.sum(&:bytesize)
+      def self.preview(parts, format: nil, wire_size: nil)
+        if format == :marshal
+          inspected = parts.inspect
+          truncated = inspected.bytesize > 60
+          inspected = inspected.byteslice(0, 60) if truncated
+          out = +"(marshal) #{sanitize(inspected)}"
+          out << "…" if truncated
+          return out
+        end
+
         nparts = parts.size
         shown  = parts.first(3).map { |p| preview_frame(p) }
         tail   = nparts > 3 ? "|…" : ""
-        size   = wire_size ? "#{total}B wire=#{wire_size}B" : "#{total}B"
+        total  = parts.all?(String) ? parts.sum(&:bytesize) : nil
+        size   =
+          if wire_size && total
+            "#{total}B wire=#{wire_size}B"
+          elsif total
+            "#{total}B"
+          else
+            "#{nparts}obj"
+          end
         header = nparts > 1 ? "(#{size} #{nparts}F)" : "(#{size})"
 
         "#{header} #{shown.join("|")}#{tail}"
       end
 
 
+      # Renders one frame or decoded object for {Formatter.preview}.
+      # Strings are sanitized byte-wise (first 12 bytes); non-String
+      # objects fall back to #inspect (always single-line) truncated
+      # at 24 bytes.
+      #
+      # @param part [String, Object]
+      # @return [String]
       def self.preview_frame(part)
+        unless part.is_a?(String)
+          s = part.inspect
+          return s.bytesize > 24 ? "#{s.byteslice(0, 24)}…" : s
+        end
+
         bytes = part.b
         # Empty frames must render as a visible marker, not as the empty
         # string — otherwise joining with "|" would produce misleading
@@ -113,10 +162,23 @@ module OMQ
         if printable < sample.bytesize / 2
           "[#{bytes.bytesize}B]"
         elsif bytes.bytesize > 12
-          "#{sample.gsub(/[^[:print:]]/, ".")}…"
+          "#{sanitize(sample)}…"
         else
-          sample.gsub(/[^[:print:]]/, ".")
+          sanitize(sample)
         end
+      end
+
+
+      # Escapes bytes so a preview/body line is guaranteed single-line
+      # on a shared tty. Tab/newline/CR/backslash render as literal
+      # \t/\n/\r/\\; other non-printables collapse to '.'. Forced to
+      # binary encoding first to prevent UTF-8 quirks from rendering
+      # raw LF bytes.
+      #
+      # @param bytes [String]
+      # @return [String]
+      def self.sanitize(bytes)
+        bytes.b.gsub(/[\t\n\r\\]/, LINE_ESCAPES).tr("^ -~", ".")
       end
     end
   end

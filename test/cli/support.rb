@@ -4,10 +4,15 @@ require_relative "../test_helper"
 require_relative "../../lib/omq/cli"
 require "json"
 require "stringio"
+require "securerandom"
 
 require "msgpack"
 require "omq"
 require "omq/rfc/zstd"
+
+
+# Unique IPC abstract address per call to avoid cross-test interference.
+def ipc_url(label) = "ipc://@omq-test-#{label}-#{SecureRandom.hex(4)}"
 
 # Suppress stderr/stdout from abort/puts during validation tests.
 def quietly

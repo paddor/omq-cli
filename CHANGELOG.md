@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.14.1 — 2026-04-13
+
+### Changed
+
+- **`-M` (Marshal) now carries raw Ruby objects, not array-wrapped
+  frames.** Under `-M`, each wire frame is one Marshal-dumped Ruby
+  object; inside `-e` / `-E`, `it` is that object directly (not
+  `[object]`). Enables natural scalar/hash/custom-class flows:
+
+  ```sh
+  omq push -b tcp://:5557 -ME '"foo"'
+  omq pull -c tcp://:5557 -M -e '{it => it.encoding}'
+  # => {"foo" => #<Encoding:UTF-8>}
+  ```
+
+  The previous one-element-Array wrap was cosmetic — it always
+  produced exactly one wire frame anyway — so no multipart
+  semantics are lost.
+
+### Fixed
+
+- **`-vvv` trace lines now precede stdout side-effects from
+  `-e` / `-E`.** A `<<` / `>>` line is emitted from the app fiber
+  *before* the eval expression runs, so sequences like
+  `-e 'p it'` read strictly as `trace → eval output → body` on a
+  shared tty. Previous design emitted traces from the monitor
+  fiber and raced with stdout.
+- **`-vvv` under `-M` now shows the app-level object, not wire
+  bytes.** Preview header switches to `(marshal) <inspect>` with
+  sanitization and 60-byte truncation, e.g.
+  `<< (marshal) [nil, :foo, "bar"]`.
+- **`-vvv` trace preview sanitizes control characters.** Tabs,
+  newlines, CR, and backslash render as `\t`, `\n`, `\r`, `\\`;
+  other non-printables collapse to `.`. Previously raw LF inside
+  a binary frame could leak and break the single-line guarantee.
+- Test suite runs cleanly without protocol-error stderr noise.
+
 ## 0.14.0 — 2026-04-13
 
 ### Added
