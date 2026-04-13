@@ -20,20 +20,20 @@ module OMQ
       def encode(parts)
         case @format
         when :ascii
-          parts.map { |p| p.b.gsub(/[^[:print:]\t]/, ".") }.join("\t") + "\n"
+          parts.map { |p| p.b.gsub(/[^[:print:]\t]/, ".") }.join("\t") << "\n"
         when :quoted
-          parts.map { |p| p.b.dump[1..-2] }.join("\t") + "\n"
+          parts.map { |p| p.b.dump[1..-2] }.join("\t") << "\n"
         when :raw
           parts.each_with_index.map do |p, i|
             Protocol::ZMTP::Codec::Frame.new(p.to_s, more: i < parts.size - 1).to_wire
           end.join
         when :jsonl
-          JSON.generate(parts) + "\n"
+          JSON.generate(parts) << "\n"
         when :msgpack
           MessagePack.pack(parts)
         when :marshal
           # Under -M, `parts` is a single Ruby object (not a frame array).
-          parts.inspect + "\n"
+          parts.inspect << "\n"
         end
       end
 

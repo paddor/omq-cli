@@ -4,6 +4,10 @@
 
 ### Changed
 
+- `Formatter#encode` drops one String allocation per message on
+  the ascii / quoted / jsonl / marshal paths by mutating the
+  fresh `.join` / `JSON.generate` / `.inspect` result with `<<`
+  instead of `+ "\n"`.
 - `Formatter.marshal_preview` and `Formatter.frames_preview` (extracted
   from `Formatter.preview` in the `-vvv` marshal trace work) are now
   `private_class_method` — they were only ever meant to be called
