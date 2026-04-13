@@ -50,12 +50,16 @@ module OMQ
         @pull, @push = build_pull_push(in_eps, out_eps)
         compile_expr
         @sock = @pull  # for eval instance_exec
-        start_event_monitors if config.verbose >= 2
+        start_event_monitors
         wait_for_peers_with_timeout if config.timeout
         setup_sequential_transient(task)
         @sock.instance_exec(&@recv_begin_proc) if @recv_begin_proc
         sequential_message_loop(fan_out: out_eps.size > 1)
         @sock.instance_exec(&@recv_end_proc) if @recv_end_proc
+      rescue OMQ::SocketDeadError => error
+        reason = error.cause&.message || error.message
+        $stderr.write("omq: #{reason}\n")
+        exit 1
       ensure
         @pull&.close
         @push&.close
@@ -84,6 +88,7 @@ module OMQ
         push = OMQ::PUSH.new(**kwargs)
         SocketSetup.apply_options(pull, config)
         SocketSetup.apply_options(push, config)
+        SocketSetup.apply_recv_maxsz(pull, config)
         SocketSetup.apply_compression(pull, config, "pull")
         SocketSetup.apply_compression(push, config, "push")
         SocketSetup.attach_endpoints(pull, in_eps, verbose: config.verbose, timestamps: config.timestamps)
@@ -193,12 +198,22 @@ module OMQ
 
 
       def start_event_monitors
-        trace = config.verbose >= 3
+        trace      = config.verbose >= 3
+        log_events = config.verbose >= 2
         [@pull, @push].each do |sock|
           sock.monitor(verbose: trace) do |event|
-            Term.write_event(event, config.timestamps)
+            Term.write_event(event, config.timestamps) if log_events
+            kill_on_protocol_error(sock, event)
           end
         end
+      end
+
+
+      def kill_on_protocol_error(sock, event)
+        return unless event.type == :disconnected
+        error = event.detail && event.detail[:error]
+        return unless error.is_a?(Protocol::ZMTP::Error)
+        sock.engine.signal_fatal_error(error)
       end
     end
   end

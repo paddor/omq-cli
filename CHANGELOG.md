@@ -48,6 +48,38 @@
   these URLs before handing them off. Removed
   `CliParser.loopback_bind_host` and the `normalize_bind`/
   `normalize_connect`/`normalize_ep` block. Requires `omq ~> 0.19`.
+- **Terminate on protocol errors instead of silent reconnect.** When
+  a peer sends a frame that violates the ZMTP wire protocol
+  (oversized, bad framing, zstd bytebomb, nonce exhaustion, …), the
+  library drops that one connection and reconnects — the libzmq
+  parity behavior. The CLI is a different audience: a persistent
+  protocol violation is almost always a misconfiguration the user
+  needs to see, not silently paper over. Every runner
+  (`BaseRunner`, `PipeRunner`, `ParallelWorker`, `PipeWorker`) now
+  attaches a monitor that watches for `:disconnected` events whose
+  `detail[:error]` is a `Protocol::ZMTP::Error`, prints
+  `omq: <reason>` to stderr, kills the socket, and exits with
+  status 1. Requires `omq ~> 0.19.2` for the new `:disconnected`
+  detail shape and `Socket#engine` accessor.
+- **`-vvv` disconnect events render the reason in parentheses.**
+  `Term.format_event` now pretty-prints `:disconnected` details
+  that contain a `:reason` key, e.g.
+  `disconnected tcp://:5555 (frame size 1024 exceeds max_message_size 32)`,
+  instead of dumping the raw hash.
+
+### Fixed
+
+- **`--recv-maxsz` is now actually applied in pipe and parallel
+  modes.** `PipeRunner`, `PipeWorker`, and `ParallelWorker` were
+  only calling `SocketSetup.apply_options` + `apply_compression`
+  and skipping `max_message_size` entirely — so the default 1 MiB
+  cap (and any `--recv-maxsz` override) silently had no effect on
+  `omq pipe` or `omq pull -P`. Extracted the logic into
+  `SocketSetup.apply_recv_maxsz` and wired it into all four setup
+  paths (sequential pull/rep, sequential pipe, parallel worker,
+  pipe worker). Oversized frames now drop the connection as
+  intended and — combined with the CLI termination policy above —
+  exit with a clear error instead of hanging in a reconnect loop.
 
 ## 0.13.0 — 2026-04-12
 

@@ -49,7 +49,14 @@ module OMQ
           "#{prefix}omq: << ZDICT (#{event.detail[:size]}B)"
         else
           ep     = event.endpoint ? " #{event.endpoint}" : ""
-          detail = event.detail ? " #{event.detail}" : ""
+          detail =
+            if event.detail.is_a?(Hash) && event.detail[:reason]
+              " (#{event.detail[:reason]})"
+            elsif event.detail
+              " #{event.detail}"
+            else
+              ""
+            end
           "#{prefix}omq: #{event.type}#{ep}#{detail}"
         end
       end

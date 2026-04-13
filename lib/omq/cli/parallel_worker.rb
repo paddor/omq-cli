@@ -29,6 +29,15 @@ module OMQ
           compile_expr
           run_loop
           run_end_block
+        rescue OMQ::SocketDeadError => error
+          # Socket was killed by a protocol violation on the peer side
+          # (see Engine#signal_fatal_error). Surface the underlying
+          # cause via the log stream and exit cleanly -- the Ractor
+          # completes, consumer threads unblock.
+          reason = error.cause&.message || error.message
+          @log_port.send("omq: #{reason}")
+        rescue => error
+          @error_port.send("#{error.class}: #{error.message}")
         ensure
           @sock&.close
         end
@@ -41,6 +50,7 @@ module OMQ
       def setup_socket
         @sock = @config.ffi ? OMQ.const_get(@socket_sym).new(backend: :ffi) : OMQ.const_get(@socket_sym).new
         OMQ::CLI::SocketSetup.apply_options(@sock, @config)
+        OMQ::CLI::SocketSetup.apply_recv_maxsz(@sock, @config)
         OMQ::CLI::SocketSetup.apply_compression(@sock, @config, @config.type_name)
         @sock.identity = @config.identity if @config.identity
         OMQ::CLI::SocketSetup.attach_endpoints(@sock, @endpoints, verbose: 0)
@@ -56,11 +66,23 @@ module OMQ
 
 
       def start_monitors
-        return unless @config.verbose >= 2
-        trace = @config.verbose >= 3
+        trace      = @config.verbose >= 3
+        log_events = @config.verbose >= 2
         @sock.monitor(verbose: trace) do |event|
-          @log_port.send(OMQ::CLI::Term.format_event(event, @config.timestamps))
+          @log_port.send(OMQ::CLI::Term.format_event(event, @config.timestamps)) if log_events
+          kill_on_protocol_error(event)
         end
+      end
+
+
+      # Mirrors BaseRunner#kill_on_protocol_error: CLI-level policy
+      # that protocol-level disconnects kill the socket so the
+      # recv loop unblocks with SocketDeadError.
+      def kill_on_protocol_error(event)
+        return unless event.type == :disconnected
+        error = event.detail && event.detail[:error]
+        return unless error.is_a?(Protocol::ZMTP::Error)
+        @sock.engine.signal_fatal_error(error)
       end
 
 

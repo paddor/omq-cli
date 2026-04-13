@@ -78,17 +78,22 @@ module OMQ
         sock = config.ffi ? klass.new(backend: :ffi) : klass.new
         sock.conflate = true if config.conflate && %w[pub radio].include?(config.type_name)
         apply_options(sock, config)
-        # --recv-maxsz: nil → 1 MiB default; 0 → explicitly unlimited; else → as-is.
+        apply_recv_maxsz(sock, config)
+        sock.identity         = config.identity   if config.identity
+        sock.router_mandatory = true if config.type_name == "router"
+        apply_compression(sock, config, config.type_name)
+        sock
+      end
+
+
+      # --recv-maxsz: nil → 1 MiB default; 0 → explicitly unlimited; else → as-is.
+      def self.apply_recv_maxsz(sock, config)
         sock.max_message_size =
           case config.recv_maxsz
           when nil then DEFAULT_RECV_MAXSZ
           when 0   then nil
           else          config.recv_maxsz
           end
-        sock.identity         = config.identity   if config.identity
-        sock.router_mandatory = true if config.type_name == "router"
-        apply_compression(sock, config, config.type_name)
-        sock
       end
 
 

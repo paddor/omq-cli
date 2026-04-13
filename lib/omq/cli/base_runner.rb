@@ -26,13 +26,17 @@ module OMQ
       def call(task)
         set_process_title
         setup_socket
-        start_event_monitor if config.verbose >= 2
+        start_event_monitor
         maybe_start_transient_monitor(task)
         sleep(config.delay) if config.delay && config.recv_only?
         wait_for_peer if needs_peer_wait?
         run_begin_blocks
         run_loop(task)
         run_end_blocks
+      rescue OMQ::SocketDeadError => error
+        reason = error.cause&.message || error.message
+        $stderr.write("omq: #{reason}\n")
+        exit 1
       ensure
         @sock&.close
       end
@@ -464,21 +468,37 @@ module OMQ
       end
 
 
-      # -vv: log connect/disconnect/retry/timeout events via Socket#monitor
-      # -vvv: also log message sent/received traces
+      # Always attached so protocol-level disconnect events can kill
+      # the socket. Verbose gating lives inside the callback:
+      #   -vv  log connect/disconnect/retry/timeout events
+      #   -vvv also log message sent/received traces
       # --timestamps[=s|ms|us]: prepend UTC timestamps to log lines
       def start_event_monitor
-        trace = config.verbose >= 3
+        trace        = config.verbose >= 3
+        log_events   = config.verbose >= 2
         @sock.monitor(verbose: trace) do |event|
-          Term.write_event(event, config.timestamps)
-          # At -vvv, also write the plaintext body to stdout from this
-          # same fiber so the trace line and body land on the tty in
-          # order (see BaseRunner#output).
+          Term.write_event(event, config.timestamps) if log_events
           if trace && event.type == :message_received && !config.quiet
             $stdout.write(@fmt.encode(event.detail[:parts]))
             $stdout.flush
           end
+          kill_on_protocol_error(event)
         end
+      end
+
+
+      # omq-cli policy: a peer that commits a protocol-level violation
+      # (Protocol::ZMTP::Error — oversized frame, decompression
+      # bytebomb, bad framing, …) is almost certainly a
+      # misconfiguration the user needs to see. Mark the socket dead
+      # so the next receive raises SocketDeadError. The library
+      # itself just drops the connection and keeps serving the
+      # others; this stricter policy is CLI-only.
+      def kill_on_protocol_error(event)
+        return unless event.type == :disconnected
+        error = event.detail && event.detail[:error]
+        return unless error.is_a?(Protocol::ZMTP::Error)
+        @sock.engine.signal_fatal_error(error)
       end
     end
   end

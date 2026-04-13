@@ -120,6 +120,117 @@ describe "pull -P parallel execution" do
 end
 
 
+describe "pull -P with oversized frames" do
+  it "does not hang when peer sends messages exceeding max_message_size" do
+    url = ipc_url("pull-parallel-maxsz")
+
+    cfg = make_config(
+      type_name:  "pull",
+      endpoints:  [OMQ::CLI::Endpoint.new(url, false)],
+      parallel:   1,
+      recv_maxsz: 32,
+      quiet:      true,
+    )
+
+    io_thread = Thread.new do
+      Sync do
+        src = OMQ::PUSH.new(linger: 2)
+        src.bind(url)
+        src.peer_connected.wait
+        src.send(["x" * 1024])
+        sleep 0.5
+      ensure
+        src&.close
+      end
+    end
+
+    runner_thread = run_runner(OMQ::CLI::PullRunner, cfg, OMQ::PULL)
+
+    assert runner_thread.join(5), "PullRunner hung after peer sent an oversized frame"
+    io_thread.join
+  end
+end
+
+
+describe "pipe with oversized frames" do
+  it "sequential pipe exits on oversized frames" do
+    in_url  = ipc_url("pipe-maxsz-in")
+    out_url = ipc_url("pipe-maxsz-out")
+
+    cfg = make_config(
+      type_name:     "pipe",
+      in_endpoints:  [OMQ::CLI::Endpoint.new(in_url,  false)],
+      out_endpoints: [OMQ::CLI::Endpoint.new(out_url, false)],
+      recv_maxsz:    32,
+      linger:        0,
+    )
+
+    io_thread = Thread.new do
+      Sync do
+        src = OMQ::PUSH.new(linger: 2)
+        src.bind(in_url)
+        sink = OMQ::PULL.new(linger: 0)
+        sink.bind(out_url)
+        src.peer_connected.wait
+        src.send(["x" * 1024])
+        sleep 0.5
+      ensure
+        src&.close
+        sink&.close
+      end
+    end
+
+    runner_exit = nil
+    runner_thread = Thread.new do
+      Sync do |task|
+        OMQ::CLI::PipeRunner.new(cfg).call(task)
+      end
+    rescue SystemExit => e
+      runner_exit = e.status
+    end
+
+    assert runner_thread.join(5), "PipeRunner hung after peer sent an oversized frame"
+    io_thread.join
+    assert_equal 1, runner_exit, "PipeRunner should have called exit 1 on protocol error"
+  end
+
+
+  it "parallel pipe worker exits on oversized frames" do
+    in_url  = ipc_url("pipe-P-maxsz-in")
+    out_url = ipc_url("pipe-P-maxsz-out")
+
+    cfg = make_config(
+      type_name:     "pipe",
+      in_endpoints:  [OMQ::CLI::Endpoint.new(in_url,  false)],
+      out_endpoints: [OMQ::CLI::Endpoint.new(out_url, false)],
+      parallel:      1,
+      recv_maxsz:    32,
+      linger:        0,
+    )
+
+    io_thread = Thread.new do
+      Sync do
+        src = OMQ::PUSH.new(linger: 2)
+        src.bind(in_url)
+        sink = OMQ::PULL.new(linger: 0)
+        sink.bind(out_url)
+        src.peer_connected.wait
+        src.send(["x" * 1024])
+        sleep 0.5
+      ensure
+        src&.close
+        sink&.close
+      end
+    end
+
+    runner_thread = run_pipe_runner(cfg)
+
+    assert runner_thread.join(5), "parallel PipeRunner hung after peer sent an oversized frame"
+    io_thread.join
+  end
+end
+
+
 describe "rep -P parallel execution" do
   it "echoes requests back from parallel workers" do
     url    = ipc_url("rep-parallel")
