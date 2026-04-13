@@ -149,16 +149,16 @@ module OMQ
         nparts = parts.size
         shown  = parts.first(3).map { |p| preview_frame(p) }
         tail   = nparts > 3 ? "|…" : ""
-        total  = parts.all?(String) ? parts.sum(&:bytesize) : nil
-        size   =
-          if wire_size && total
-            "#{total}B wire=#{wire_size}B"
-          elsif total
-            "#{total}B"
-          else
-            "#{nparts}obj"
-          end
+        total  = parts.all?(String) ? parts.sum { |p| p.bytesize } : nil
+        size   = if wire_size && total
+                   "#{total}B wire=#{wire_size}B"
+                 elsif total
+                   "#{total}B"
+                 else
+                   "#{nparts}obj"
+                 end
         header = nparts > 1 ? "(#{size} #{nparts}F)" : "(#{size})"
+
         "#{header} #{shown.join("|")}#{tail}"
       end
       private_class_method :frames_preview

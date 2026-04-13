@@ -25,14 +25,12 @@
 - Dropped a redundant unary `+` before `Formatter.sanitize(...)` in
   `marshal_preview`: `sanitize` already returns a fresh mutable String
   via `.tr`, so the `+""` dup was dead weight.
-
 - **`-vvv` marshal trace headers now show plaintext and wire byte
   sizes.** Previously `<< (marshal) ...` carried no size info; it
   now renders as `(135B marshal) ...` and, when ZMTP-Zstd
   compression is negotiated, `(135B wire=50B marshal) ...` —
   matching the frame-based preview format used by every other
   `-vvv` output.
-
   Other formats (ascii/quoted/jsonl/msgpack/raw) already showed
   plaintext size via the frame preview; they now also pick up
   `wire=NB` when compression is active, since `wire_size` is
@@ -41,6 +39,7 @@
   engine's send pump emits the compressed byte count
   asynchronously, so the value reflects the most recently
   *completed* send; receive-side is exact.
+- Hot-path optimized.
 
 ## 0.14.1 — 2026-04-13
 

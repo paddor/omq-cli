@@ -49,7 +49,7 @@ module OMQ
         return result if @format == :marshal
 
         result = result.is_a?(Array) ? result : [result]
-        result.map(&:to_s)
+        result.map { |part| part.to_s }
       rescue => e
         $stderr.puts "omq: eval error: #{e.message} (#{e.class})"
         exit 3
@@ -67,7 +67,7 @@ module OMQ
         return nil if result.nil?
         return result if format == :marshal
         result = result.is_a?(Array) ? result : [result]
-        result.map(&:to_s)
+        result.map { |part| part.to_s }
       end
 
 
