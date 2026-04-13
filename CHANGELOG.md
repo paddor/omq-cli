@@ -4,6 +4,16 @@
 
 ### Changed
 
+- `kill_on_protocol_error` is now a single
+  `SocketSetup.kill_on_protocol_error(sock, event)` class method.
+  Previously `BaseRunner`, `ParallelWorker`, and `PipeRunner` each
+  carried an identical 4-line copy of the CLI policy that
+  protocol-level disconnects mark the socket dead.
+- `ExpressionEvaluator.extract_block` is now a single class method
+  used by both the instance compile path and the
+  `compile_inside_ractor` path. The in-Ractor copy previously lived
+  as a local lambda that duplicated the instance
+  `extract_block` method.
 - `Formatter#encode` drops one String allocation per message on
   the ascii / quoted / jsonl / marshal paths by mutating the
   fresh `.join` / `JSON.generate` / `.inspect` result with `<<`

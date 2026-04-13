@@ -79,22 +79,8 @@ module OMQ
       def self.compile_inside_ractor(src)
         return [nil, nil, nil] unless src
 
-        extract = ->(expr, kw) {
-          s = expr.index(/#{kw}\s*\{/)
-          return [expr, nil] unless s
-          ci = expr.index("{", s)
-          depth = 1
-          j = ci + 1
-          while j < expr.length && depth > 0
-            depth += 1 if expr[j] == "{"
-            depth -= 1 if expr[j] == "}"
-            j += 1
-          end
-          [expr[0...s] + expr[j..], expr[(ci + 1)..(j - 2)]]
-        }
-
-        expr, begin_body = extract.(src, "BEGIN")
-        expr, end_body   = extract.(expr, "END")
+        expr, begin_body = extract_block(src,  "BEGIN")
+        expr, end_body   = extract_block(expr, "END")
 
         begin_proc = eval("proc { #{begin_body} }") if begin_body
         end_proc   = eval("proc { #{end_body} }")   if end_body
@@ -107,17 +93,13 @@ module OMQ
       end
 
 
-      private
-
-
-      def extract_blocks(expr)
-        expr, begin_body = extract_block(expr, "BEGIN")
-        expr, end_body   = extract_block(expr, "END")
-        [expr, begin_body, end_body]
-      end
-
-
-      def extract_block(expr, keyword)
+      # Strips a +BEGIN {...}+ or +END {...}+ block from +expr+ and
+      # returns +[trimmed_expr, block_body_or_nil]+. Brace-matched scan,
+      # so nested `{}` inside the block body are handled. Shared by
+      # instance and Ractor compile paths, so must be a class method
+      # (Ractors cannot call back into instance state).
+      #
+      def self.extract_block(expr, keyword)
         start = expr.index(/#{keyword}\s*\{/)
         return [expr, nil] unless start
 
@@ -137,6 +119,16 @@ module OMQ
         body    = expr[(i + 1)..(j - 2)]
         trimmed = expr[0...start] + expr[j..]
         [trimmed, body]
+      end
+
+
+      private
+
+
+      def extract_blocks(expr)
+        expr, begin_body = self.class.extract_block(expr, "BEGIN")
+        expr, end_body   = self.class.extract_block(expr, "END")
+        [expr, begin_body, end_body]
       end
     end
   end

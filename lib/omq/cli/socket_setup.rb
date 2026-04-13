@@ -179,6 +179,24 @@ module OMQ
           $stderr.puts "OMQ_SERVER_KEY='#{Protocol::ZMTP::Z85.encode(server_pub)}'"
         end
       end
+
+
+      # CLI-level policy: a peer that commits a protocol-level violation
+      # (Protocol::ZMTP::Error — oversized frame, decompression bytebomb,
+      # bad framing, …) is almost certainly a misconfiguration the user
+      # needs to see. Mark +sock+ dead so the next receive raises
+      # SocketDeadError. The library itself just drops the connection and
+      # keeps serving the others; this stricter policy is CLI-only.
+      #
+      # @param sock [OMQ::Socket]
+      # @param event [OMQ::MonitorEvent]
+      #
+      def self.kill_on_protocol_error(sock, event)
+        return unless event.type == :disconnected
+        error = event.detail && event.detail[:error]
+        return unless error.is_a?(Protocol::ZMTP::Error)
+        sock.engine.signal_fatal_error(error)
+      end
     end
   end
 end

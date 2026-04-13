@@ -549,23 +549,8 @@ module OMQ
           else
             Term.write_event(event, config.timestamps) if log_events
           end
-          kill_on_protocol_error(event)
+          SocketSetup.kill_on_protocol_error(@sock, event)
         end
-      end
-
-
-      # omq-cli policy: a peer that commits a protocol-level violation
-      # (Protocol::ZMTP::Error — oversized frame, decompression
-      # bytebomb, bad framing, …) is almost certainly a
-      # misconfiguration the user needs to see. Mark the socket dead
-      # so the next receive raises SocketDeadError. The library
-      # itself just drops the connection and keeps serving the
-      # others; this stricter policy is CLI-only.
-      def kill_on_protocol_error(event)
-        return unless event.type == :disconnected
-        error = event.detail && event.detail[:error]
-        return unless error.is_a?(Protocol::ZMTP::Error)
-        @sock.engine.signal_fatal_error(error)
       end
     end
   end

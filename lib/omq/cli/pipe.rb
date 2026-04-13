@@ -203,17 +203,9 @@ module OMQ
         [@pull, @push].each do |sock|
           sock.monitor(verbose: trace) do |event|
             Term.write_event(event, config.timestamps) if log_events
-            kill_on_protocol_error(sock, event)
+            SocketSetup.kill_on_protocol_error(sock, event)
           end
         end
-      end
-
-
-      def kill_on_protocol_error(sock, event)
-        return unless event.type == :disconnected
-        error = event.detail && event.detail[:error]
-        return unless error.is_a?(Protocol::ZMTP::Error)
-        sock.engine.signal_fatal_error(error)
       end
     end
   end
