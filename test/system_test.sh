@@ -329,8 +329,8 @@ wait $PULL_PID
 END=$(date +%s%N)
 ELAPSED_MS=$(( (END - START) / 1000000 ))
 check "pull -i receives correct count" "3" "$(wc -l < $TMPDIR/pull_interval_out.txt | tr -d ' ')"
-# 3 messages at 0.2s interval: ~0.6s total, allow 300-1500ms
-if [ "$ELAPSED_MS" -ge 300 ] && [ "$ELAPSED_MS" -le 1500 ]; then
+# 3 messages at 0.2s interval: ~0.6s pacing + ~1s startup overhead (two ruby spawns + handshake + linger)
+if [ "$ELAPSED_MS" -ge 300 ] && [ "$ELAPSED_MS" -le 2000 ]; then
   PULL_TIMING="yes"
 else
   PULL_TIMING="no (${ELAPSED_MS}ms)"

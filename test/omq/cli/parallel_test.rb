@@ -84,7 +84,7 @@ describe "pull -P parallel execution" do
       Sync do
         src = OMQ::PUSH.new
         src.linger      = 1
-        src.compression = OMQ::RFC::Zstd::Compression.auto
+        src.compression = OMQ::Compression::Zstd.auto
         src.bind(url)
         src.peer_connected.wait
         n_msgs.times { |i| src.send(["msg-#{i}"]) }

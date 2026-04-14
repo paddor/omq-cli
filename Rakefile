@@ -10,7 +10,7 @@ end
 
 desc "Run omq CLI system tests"
 task "test:system" do
-  sh "sh test/cli/system_test.sh"
+  sh "sh test/system_test.sh"
 end
 
 task default: :test

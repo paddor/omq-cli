@@ -49,9 +49,9 @@ module OMQ
       # their push/pull ends of a single pipe.
       def self.apply_compression(sock, config, type_name)
         if config.compress
-          sock.compression = OMQ::RFC::Zstd::Compression.auto(level: config.compress_level || -3)
+          sock.compression = OMQ::Compression::Zstd.auto(level: config.compress_level || -3)
         elsif !PURE_SEND_TYPES.include?(type_name)
-          sock.compression = OMQ::RFC::Zstd::Compression.auto(passive: true)
+          sock.compression = OMQ::Compression::Zstd.auto(passive: true)
         end
       end
 

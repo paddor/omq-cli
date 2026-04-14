@@ -29,20 +29,28 @@ module OMQ
   class << self
     # @return [Proc, nil] registered outgoing message transform
     attr_reader :outgoing_proc
+
+
     # @return [Proc, nil] registered incoming message transform
     attr_reader :incoming_proc
+
 
     # Registers an outgoing message transform (used by -r scripts).
     #
     # @yield [Array<String>] message parts before sending
     # @return [Proc]
-    def outgoing(&block) = @outgoing_proc = block
+    def outgoing(&block)
+      @outgoing_proc = block
+    end
+
 
     # Registers an incoming message transform (used by -r scripts).
     #
     # @yield [Array<String>] message parts after receiving
     # @return [Proc]
-    def incoming(&block) = @incoming_proc = block
+    def incoming(&block)
+      @incoming_proc = block
+    end
   end
 
 
@@ -123,6 +131,7 @@ module OMQ
     def run_keygen(argv)
       crypto_name = nil
       verbose     = false
+
       while (arg = argv.shift)
         case arg
         when "--crypto"
