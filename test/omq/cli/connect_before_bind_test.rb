@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "support"
+require_relative "../../test_helper"
 
 # These tests verify that CLI runners work correctly when the connecting
 # side starts before the binding side.  This is the normal reconnect

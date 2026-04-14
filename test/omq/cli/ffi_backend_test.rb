@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "support"
+require_relative "../../test_helper"
 require "securerandom"
 
 # These tests exercise the --ffi flag end-to-end by running RepRunner

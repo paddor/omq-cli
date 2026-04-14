@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "support"
+require_relative "../../test_helper"
 
 describe "Routing helpers" do
   before do
