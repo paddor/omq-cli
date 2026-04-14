@@ -1,32 +1,47 @@
-# omq — ZeroMQ CLI
+# omq — a powerful swiss army knife for ØMQ
 
 [![Gem Version](https://img.shields.io/gem/v/omq-cli?color=e9573f)](https://rubygems.org/gems/omq-cli)
 [![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)](LICENSE)
 [![Ruby](https://img.shields.io/badge/Ruby-%3E%3D%203.3-CC342D?logo=ruby&logoColor=white)](https://www.ruby-lang.org)
 
-Command-line tool for sending and receiving ZeroMQ messages on any socket type.
-Like `nngcat` from libnng, but with Ruby eval, Ractor parallelism, and message handlers.
-
-Built on [omq](https://github.com/zeromq/omq) — pure Ruby ZeroMQ, no C dependencies.
-
-## Install
+A command-line tool that speaks every ZeroMQ socket pattern, transforms
+messages with inline Ruby, parallelizes across Ractors, encrypts with CURVE,
+and reshapes stdin/stdout through three I/O formats on top of three
+on-the-wire formats. Built on [ØMQ](https://github.com/zeromq/omq) — pure
+Ruby, no C dependencies.
 
 ```sh
 gem install omq-cli
 ```
 
-## Quick Start
+Think of it as `nngcat` with a scripting engine bolted on. A few things it can do out of the box:
 
 ```sh
-# Echo server
+# an echo server in one line
 omq rep -b tcp://:5555 --echo
 
-# Client
-echo "hello" | omq req -c tcp://localhost:5555
-
-# Upcase server — -e evals Ruby on each incoming message
+# upcase every incoming message
 omq rep -b tcp://:5555 -e 'it.map(&:upcase)'
+
+# publish a live timestamp every second
+omq pub -c tcp://localhost:5556 -E 'Time.now.to_s' -i 1
+
+# CPU-parallel PULL → transform → PUSH pipeline across all cores
+omq pipe -c@work -c@sink -P0 -r./fib.rb -e 'fib(Integer(it.first)).to_s'
+
+# JSON over the wire, filter by field
+omq sub -c tcp://localhost:5556 -rjson -e 'JSON.parse(it.first)["temperature"]'
 ```
+
+## Highlights
+
+- **Every socket pattern** — req/rep, pub/sub, push/pull, dealer/router, xpub/xsub, pair, and draft types (client/server, radio/dish, scatter/gather, peer, channel)
+- **Inline Ruby transforms** — `-e` rewrites incoming messages, `-E` rewrites outgoing. `next` / `break` / `nil` for flow control, `BEGIN{}` / `END{}` for awk-style aggregation, `-r` to load helper scripts
+- **Ractor-parallel `pipe`** — `-P0` spawns one worker Ractor per core, each with its own PULL/PUSH pair. CPU-bound transforms actually scale
+- **I/O formats** — ASCII, quoted, or JSONL for stdin/stdout (display only; wire stays plain)
+- **Wire formats** — raw ZMTP, MessagePack, or Ruby Marshal shape the frame payload itself, so arbitrary Ruby objects round-trip end-to-end. Optional Zstandard compression (`-z`) on top
+- **CURVE encryption** — end-to-end encrypted sockets via libsodium (or nuckle, pure Ruby). `omq keygen` generates a persistent keypair
+- **Transient mode** — `--transient` exits cleanly when peers disconnect, perfect for pipeline workers and one-shot sinks
 
 ```
 Usage: omq TYPE [options]
@@ -212,8 +227,7 @@ echo hello | omq push -c tcp://localhost:5557 -E 'it.map(&:upcase)'
 omq pull -b tcp://:5557 -e 'it.first.include?("error") ? it : nil'
 
 # REQ: different transforms per direction
-echo hello | omq req -c tcp://localhost:5555 \
-  -E 'it.map(&:upcase)' -e 'it.map(&:reverse)'
+echo hello | omq req -c tcp://localhost:5555 -E 'it.map(&:upcase)' -e 'it.map(&:reverse)'
 
 # generate messages without stdin
 omq pub -c tcp://localhost:5556 -E 'Time.now.to_s' -i 1
@@ -305,17 +319,32 @@ OMQ.outgoing { |msg| [*msg, Time.now.iso8601] }
 
 ## Formats
 
+Two distinct axes: **I/O formats** reshape how messages are read from stdin
+and printed to stdout, while **wire formats** shape the frame payload that
+actually goes over ZMTP. Pick one of each — they compose freely.
+
+### I/O formats (stdin/stdout only)
+
 | Flag | Format |
 |------|--------|
 | `-A` / `--ascii` | Tab-separated frames, non-printable → dots (default) |
 | `-Q` / `--quoted` | C-style escapes, lossless round-trip |
-| `--raw` | Raw ZMTP binary (pipe to `hexdump -C` for debugging) |
 | `-J` / `--jsonl` | JSON Lines — `["frame1","frame2"]` per line |
-| `--msgpack` | MessagePack arrays (binary stream) |
-| `-M` / `--marshal` | Ruby Marshal — one arbitrary Ruby object per message |
 
-Multipart messages: in ASCII/quoted mode, frames are tab-separated. In JSONL mode,
-each message is a JSON array.
+Display-only: the wire carries plain ZMTP frames. Multipart messages are
+tab-separated in ASCII/quoted mode and encoded as JSON arrays in JSONL.
+
+### Wire formats (on the ZMTP frame payload)
+
+| Flag | Format |
+|------|--------|
+| `--raw` | Raw ZMTP binary (pipe to `hexdump -C` for debugging) |
+| `--msgpack` | MessagePack — each frame is one packed object |
+| `-M` / `--marshal` | Ruby Marshal — each frame is one arbitrary Ruby object |
+
+Wire formats reshape the payload end-to-end: inside `-e`/`-E`, `it` is the
+decoded object (not an Array of frames), so scalars, hashes, and custom
+classes flow through transparently between peers speaking the same format.
 
 ```sh
 # send multipart via tabs
@@ -326,12 +355,8 @@ echo '["key","value"]' | omq push -c tcp://localhost:5557 -J
 omq pull -b tcp://:5557 -J
 ```
 
-Under `-M`, each wire frame is one Marshal-dumped Ruby object. Inside `-e` / `-E`,
-`it` is that raw object — not an Array of frames — so scalars, hashes, custom
-classes, or any Marshal-safe value flow through transparently:
-
 ```sh
-# send a bare String, receive a { string => encoding } Hash
+# send a bare String with Marshal, receive a { string => encoding } Hash
 omq push -b tcp://:5557 -ME '"foo"'
 omq pull -c tcp://:5557 -M -e '{it => it.encoding}'
 # => {"foo" => #<Encoding:UTF-8>}
@@ -413,8 +438,7 @@ omq rep -b tcp://:5555 --echo --curve-server --crypto nuckle
 omq rep -b tcp://:5555 --echo --curve-server
 
 # client (paste the key)
-echo "secret" | omq req -c tcp://localhost:5555 \
-  --curve-server-key '<key from server>'
+echo "secret" | omq req -c tcp://localhost:5555 --curve-server-key '<key from server>'
 ```
 
 Persistent keys via env vars: `OMQ_SERVER_PUBLIC` + `OMQ_SERVER_SECRET` (server), `OMQ_SERVER_KEY` (client).
