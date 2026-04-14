@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.15.0 — 2026-04-14
+
+### Changed
+
+- Use omq-rfc-zstd ~> 0.2
+
 ## 0.14.9 — 2026-04-14
 
 ### Fixed
