@@ -28,6 +28,7 @@ module OMQ
           expr, begin_body, end_body = extract_blocks(src)
           @begin_proc = eval("proc { #{begin_body} }") if begin_body
           @end_proc   = eval("proc { #{end_body} }")   if end_body
+
           if expr && !expr.strip.empty?
             @eval_proc = eval("proc { #{expr} }")
           end
@@ -85,6 +86,7 @@ module OMQ
         begin_proc = eval("proc { #{begin_body} }") if begin_body
         end_proc   = eval("proc { #{end_body} }")   if end_body
         eval_proc  = nil
+
         if expr && !expr.strip.empty?
           eval_proc = eval("proc { #{expr} }")
         end
@@ -100,12 +102,12 @@ module OMQ
       # (Ractors cannot call back into instance state).
       #
       def self.extract_block(expr, keyword)
-        start = expr.index(/#{keyword}\s*\{/)
-        return [expr, nil] unless start
+        start = expr.index(/#{keyword}\s*\{/) or return [expr, nil]
 
         i     = expr.index("{", start)
         depth = 1
         j     = i + 1
+
         while j < expr.length && depth > 0
           case expr[j]
           when "{"
@@ -113,6 +115,7 @@ module OMQ
           when "}"
             depth -= 1
           end
+
           j += 1
         end
 

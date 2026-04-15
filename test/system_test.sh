@@ -105,6 +105,36 @@ REP_TRACE=$(extract_trace "$REP_LOG" | tr '\n' '|' | sed 's/|$//')
 check "req -vvv trace (>> hi, << HI)" ">> hi|<< HI" "$REQ_TRACE"
 check "rep -vvv trace (<< hi, >> HI)" "<< hi|>> HI" "$REP_TRACE"
 
+# -- REQ -E generator mode ------------------------------------------
+# REQ with -E and no stdin input should produce requests from the
+# eval alone, same as PUSH/PUB generator mode. -n bounds the run.
+
+echo "REQ -E generator:"
+U=$(ipc)
+$OMQ rep -b $U -e '|(a)| a.upcase' -n 3 $T > $TMPDIR/rep_gen_out.txt 2>>"$STDERR_LOG" &
+$OMQ req -c $U -E '"foo"' -n 3 $T > $TMPDIR/req_gen_out.txt 2>>"$STDERR_LOG"
+wait
+check "req -E generator sends N requests" "FOO
+FOO
+FOO" "$(cat $TMPDIR/req_gen_out.txt)"
+check "rep sends N evaluated replies" "FOO
+FOO
+FOO" "$(cat $TMPDIR/rep_gen_out.txt)"
+
+# -- PUB -E generator mode ------------------------------------------
+# PUB with -E and no stdin input should produce messages from the
+# eval alone, same as REQ generator mode. Use -i to keep firing so
+# SUB has time to subscribe before messages go out.
+
+echo "PUB -E generator:"
+U=$(ipc)
+$OMQ sub -b $U -s "" -n 3 $T > $TMPDIR/sub_gen_out.txt 2>>"$STDERR_LOG" &
+$OMQ pub -c $U -E '"tick"' -i 0.05 -n 3 $T 2>>"$STDERR_LOG"
+wait
+check "pub -E generator, sub receives N" "tick
+tick
+tick" "$(cat $TMPDIR/sub_gen_out.txt)"
+
 # -- PUSH/PULL -------------------------------------------------------
 
 echo "PUSH/PULL:"

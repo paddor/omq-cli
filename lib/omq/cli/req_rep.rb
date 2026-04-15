@@ -10,19 +10,27 @@ module OMQ
       def run_loop(task)
         n = config.count
         i = 0
-        sleep(config.delay) if config.delay
+
+        sleep config.delay if config.delay
+        generator = @send_eval_proc && !config.data && !config.file && !stdin_ready?
+
         loop do
-          parts = read_next
-          break unless parts
-          parts = eval_send_expr(parts)
+          if generator
+            parts = eval_send_expr(nil)
+          else
+            parts = read_next
+            break unless parts
+            parts = eval_send_expr(parts)
+          end
+
           next unless parts
+
           send_msg(parts)
-          reply = recv_msg
-          break if reply.nil?
+          reply = recv_msg or break
           output(eval_recv_expr(reply))
           i += 1
           break if n && n > 0 && i >= n
-          break if !config.interval && (config.data || config.file)
+          break if !config.interval && (generator || config.data || config.file) && !(n && n > 0)
           wait_for_interval if config.interval
         end
       end
@@ -38,7 +46,11 @@ module OMQ
     # Runner for REP sockets (synchronous request-reply server).
     class RepRunner < BaseRunner
       def call(task)
-        config.parallel ? run_parallel_workers(:REP) : super
+        if config.parallel
+          run_parallel_workers(:REP)
+        else
+          super
+        end
       end
 
 
@@ -48,9 +60,9 @@ module OMQ
       def run_loop(task)
         n = config.count
         i = 0
+
         loop do
-          msg = recv_msg
-          break if msg.nil?
+          msg = recv_msg or break
           break unless handle_rep_request(msg)
           i += 1
           break if n && n > 0 && i >= n
@@ -61,6 +73,7 @@ module OMQ
       def handle_rep_request(msg)
         if config.recv_expr || @recv_eval_proc
           reply = eval_recv_expr(msg)
+
           unless reply.equal?(SENT)
             output(reply)
             send_msg(reply || [""])
@@ -76,6 +89,7 @@ module OMQ
         else
           abort "REP needs a reply source: --echo, --data, --file, -e, or stdin pipe"
         end
+
         true
       end
     end

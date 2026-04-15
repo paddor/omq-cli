@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **REQ generator mode (`-E`/`-e` with no stdin).** `omq req` now
+  produces each request from the send-eval alone when no `-d`/`-f`
+  is given and stdin is not piped, matching the existing PUSH/PUB
+  behaviour. Bounded by `-n` or paced by `-i` like the other
+  generator-capable runners.
+
+### Tests
+
+- **System tests for REQ and PUB `-E` generator mode.** REQ fires
+  `-E'"foo"' -n 3` against a REP running `-e '|(a)| a.upcase' -n 3`
+  and verifies three `FOO` replies round-trip. PUB fires
+  `-E'"tick"' -i 0.05 -n 3` against a SUB and verifies three `tick`
+  frames are received.
+
 ## 0.15.2 — 2026-04-15
 
 ### Fixed
