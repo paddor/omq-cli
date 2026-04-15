@@ -1,4 +1,4 @@
-# omq — a powerful swiss army knife for ØMQ
+# omq — Swiss army knife for ØMQ
 
 [![Gem Version](https://img.shields.io/gem/v/omq-cli?color=e9573f)](https://rubygems.org/gems/omq-cli)
 [![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)](LICENSE)
@@ -35,13 +35,23 @@ omq sub -c tcp://localhost:5556 -rjson -e 'JSON.parse(it.first)["temperature"]'
 
 ## Highlights
 
-- **Every socket pattern** — req/rep, pub/sub, push/pull, dealer/router, xpub/xsub, pair, and draft types (client/server, radio/dish, scatter/gather, peer, channel)
-- **Inline Ruby transforms** — `-e` rewrites incoming messages, `-E` rewrites outgoing. `next` / `break` / `nil` for flow control, `BEGIN{}` / `END{}` for awk-style aggregation, `-r` to load helper scripts
-- **Ractor-parallel `pipe`** — `-P0` spawns one worker Ractor per core, each with its own PULL/PUSH pair. CPU-bound transforms actually scale
-- **I/O formats** — ASCII, quoted, or JSONL for stdin/stdout (display only; wire stays plain)
-- **Wire formats** — raw ZMTP, MessagePack, or Ruby Marshal shape the frame payload itself, so arbitrary Ruby objects round-trip end-to-end. Optional Zstandard compression (`-z`) on top
-- **CURVE encryption** — end-to-end encrypted sockets via libsodium (or nuckle, pure Ruby). `omq keygen` generates a persistent keypair
-- **Transient mode** — `--transient` exits cleanly when peers disconnect, perfect for pipeline workers and one-shot sinks
+- **Every socket pattern** — req/rep, pub/sub, push/pull, dealer/router,
+  xpub/xsub, pair, and draft types (client/server, radio/dish, scatter/gather,
+  peer, channel)
+- **Inline Ruby transforms** — `-e` rewrites incoming messages, `-E` rewrites
+  outgoing. `next` / `break` / `nil` for flow control, `BEGIN{}` / `END{}` for
+  awk-style aggregation, `-r` to load helper scripts
+- **Ractor-parallel `pipe`** — `-P0` spawns one worker Ractor per core, each
+  with its own PULL/PUSH pair. CPU-bound transforms actually scale
+- **I/O formats** — ASCII, quoted, or JSONL for stdin/stdout (display only;
+  wire stays plain)
+- **Wire formats** — raw ZMTP, MessagePack, or Ruby Marshal shape the frame
+  payload itself, so arbitrary Ruby objects round-trip end-to-end. Optional
+  Zstandard compression (`-z`) on top
+- **CURVE encryption** — end-to-end encrypted sockets via libsodium (or nuckle,
+  pure Ruby). `omq keygen` generates a persistent keypair
+- **Transient mode** — `--transient` exits cleanly when peers disconnect,
+  perfect for pipeline workers and one-shot sinks
 
 ```
 Usage: omq TYPE [options]
@@ -76,7 +86,8 @@ Pipe takes two positional endpoints (input, output) or uses `--in`/`--out` for m
 | `scatter` | `gather` | Pipeline (draft, single-frame only) |
 | `radio` | `dish` | Group messaging (draft, single-frame only) |
 
-Send-only sockets read from stdin (or `--data`/`--file`) and send. Recv-only sockets receive and write to stdout.
+Send-only sockets read from stdin (or `--data`/`--file`) and send. Recv-only
+sockets receive and write to stdout.
 
 ```sh
 echo "task" | omq push -c tcp://worker:5557
@@ -111,8 +122,8 @@ echo "hello" | omq req -c tcp://localhost:5555
 | `dealer` | Like `pair` but round-robin send to multiple peers |
 | `channel` | Like `pair` (draft, single-frame) |
 
-These spawn two concurrent tasks: a receiver (prints incoming) and a sender (reads stdin).
-`-e` transforms incoming, `-E` transforms outgoing.
+These spawn two concurrent tasks: a receiver (prints incoming) and a sender
+(reads stdin). `-e` transforms incoming, `-E` transforms outgoing.
 
 ### Routing sockets
 
