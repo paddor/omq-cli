@@ -92,7 +92,7 @@ describe "connect before bind" do
 
         sleep 0.05
 
-        pull = OMQ::PULL.new(linger: 1)
+        pull = OMQ::PULL.new
         pull.bind(url)
         msg = task.with_timeout(TEST_TIMEOUT - 1) { pull.receive }
         assert_equal ["hello"], msg
@@ -220,7 +220,7 @@ describe "reconnect after handshake RST" do
         resetter.wait
         raw.close
 
-        pull = OMQ::PULL.new(linger: 1)
+        pull = OMQ::PULL.new
         pull.bind(url)
 
         msg = task.with_timeout(TEST_TIMEOUT - 1) { pull.receive }

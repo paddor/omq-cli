@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.15.2 — 2026-04-15
+
+### Fixed
+
+- **`-vvv` trace output for REQ/REP/PAIR.** `recv_msg` now calls
+  `trace_recv` itself, so every runner logs received messages under
+  `-vvv` (previously only `run_recv_logic` / `recv_tick` runners did,
+  leaving REQ/REP/PAIR receive-side traces silent).
+
+### Tests
+
+- **System test for REQ/REP verbose trace order.** Asserts REQ logs
+  `>> hi` then `<< HI`, and REP (with `-e'it.first.upcase'`) logs
+  `<< hi` then `>> HI`.
+- **Test suite aborts on background-thread exceptions.**
+  `Thread.abort_on_exception = true` in `test_helper.rb` — a raising
+  spawned thread now re-raises in the main thread immediately instead
+  of leaving the test hanging on a receive from a dead peer.
+- **`connect_before_bind_test`**: drop `linger: 1` from
+  `OMQ::PULL.new` — PULL is read-only and doesn't accept `linger`.
+
 ## 0.15.0 — 2026-04-14
 
 ### Changed

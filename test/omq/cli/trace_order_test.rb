@@ -171,7 +171,7 @@ describe "trace_recv ordering at -vvv" do
     sink_ready = Thread::Queue.new
     io_thread = Thread.new do
       Sync do
-        sink = OMQ::PULL.new(linger: 1)
+        sink = OMQ::PULL.new
         sink.bind(url)
         sink_ready << true
         frames = sink.receive

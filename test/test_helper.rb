@@ -22,6 +22,12 @@ require_relative "../lib/omq/cli"
 
 Console.logger = Console::Logger.new(Console::Output::Null.new)
 
+# A background thread that raises during a test should abort the main
+# thread immediately, not leave the test hanging on a receive from a
+# dead peer. Minitest prints the exception + backtrace from the aborting
+# thread, so the test fails loudly instead of silently timing out.
+Thread.abort_on_exception = true
+
 
 # Unique IPC abstract address per call to avoid cross-test interference.
 def ipc_url(label) = "ipc://@omq-test-#{label}-#{SecureRandom.hex(4)}"

@@ -167,7 +167,7 @@ describe "pipe with oversized frames" do
         Sync do
           src = OMQ::PUSH.new(linger: 2)
           src.bind(in_url)
-          sink = OMQ::PULL.new(linger: 0)
+          sink = OMQ::PULL.new
           sink.bind(out_url)
           src.peer_connected.wait
           src.send(["x" * 1024])
@@ -212,7 +212,7 @@ describe "pipe with oversized frames" do
         Sync do
           src = OMQ::PUSH.new(linger: 2)
           src.bind(in_url)
-          sink = OMQ::PULL.new(linger: 0)
+          sink = OMQ::PULL.new
           sink.bind(out_url)
           src.peer_connected.wait
           src.send(["x" * 1024])
@@ -293,7 +293,7 @@ describe "pipe -P parallel execution" do
       Sync do
         src  = OMQ::PUSH.new(linger: 1)
         src.bind(work_url)
-        sink = OMQ::PULL.new(linger: 0, recv_timeout: 0.3)
+        sink = OMQ::PULL.new(recv_timeout: 0.3)
         sink.bind(results_url)
 
         src.peer_connected.wait
@@ -331,7 +331,7 @@ describe "pipe -P parallel execution" do
       Sync do
         src  = OMQ::PUSH.new(linger: 1)
         src.bind(work_url)
-        sink = OMQ::PULL.new(linger: 0, recv_timeout: 0.5)
+        sink = OMQ::PULL.new(recv_timeout: 0.5)
         sink.bind(results_url)
 
         src.peer_connected.wait
