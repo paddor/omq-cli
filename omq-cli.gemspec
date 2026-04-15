@@ -24,14 +24,14 @@ Gem::Specification.new do |s|
   s.bindir     = "exe"
   s.executables = ["omq"]
 
-  s.add_dependency "omq",                   "~> 0.19", ">= 0.19.3"
+  s.add_dependency "omq",                   "~> 0.22"
   s.add_dependency "omq-ffi",               "~> 0.2"
-  s.add_dependency "omq-rfc-clientserver",  "~> 0.1"
-  s.add_dependency "omq-rfc-radiodish",     "~> 0.1"
-  s.add_dependency "omq-rfc-scattergather", "~> 0.1"
-  s.add_dependency "omq-rfc-channel",       "~> 0.1"
-  s.add_dependency "omq-rfc-p2p",           "~> 0.1"
-  s.add_dependency "omq-rfc-zstd",          "~> 0.2"
+  s.add_dependency "omq-rfc-clientserver",  "~> 0.2"
+  s.add_dependency "omq-rfc-radiodish",     "~> 0.2"
+  s.add_dependency "omq-rfc-scattergather", "~> 0.2"
+  s.add_dependency "omq-rfc-channel",       "~> 0.2"
+  s.add_dependency "omq-rfc-p2p",           "~> 0.2"
+  s.add_dependency "omq-rfc-zstd",          "~> 0.3"
   s.add_dependency "msgpack"
   s.add_dependency "rbnacl",                "~> 7.0"
 end
