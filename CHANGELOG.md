@@ -17,6 +17,12 @@
   and verifies three `FOO` replies round-trip. PUB fires
   `-E'"tick"' -i 0.05 -n 3` against a SUB and verifies three `tick`
   frames are received.
+- **System tests split into themed files under `test/system/`.** The
+  monolithic `test/system_test.sh` is replaced by 12 standalone files
+  (req_rep, push_pull, pub_sub, router_dealer, format, compression,
+  interval, transport, script, validation, pipe, parallel) sharing
+  `support.sh` helpers. `run_all.sh` chains them; each file also runs
+  standalone. `rake test:system` now invokes `run_all.sh`.
 
 ## 0.15.2 — 2026-04-15
 
