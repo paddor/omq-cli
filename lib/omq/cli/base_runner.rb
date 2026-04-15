@@ -289,7 +289,6 @@ module OMQ
           loop do
             parts = recv_msg
             break if parts.nil?
-            trace_recv(parts)
             parts = eval_recv_expr(parts)
             output(parts)
             i += 1
@@ -316,7 +315,6 @@ module OMQ
           @recv_tick_eof = true
           return 0
         end
-        trace_recv(parts)
         parts = eval_recv_expr(parts)
         output(parts)
         1
@@ -405,6 +403,7 @@ module OMQ
           parts = Marshal.load(parts.first)
         end
 
+        trace_recv(parts)
         transient_ready!
         parts
       end

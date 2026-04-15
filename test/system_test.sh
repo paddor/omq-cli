@@ -80,6 +80,31 @@ REQ_OUT=$(echo 'echo me' | $OMQ req -c $U -n 1 $T 2>>"$STDERR_LOG")
 wait
 check "rep --echo echoes back" "echo me" "$REQ_OUT"
 
+# -- Verbose REQ/REP trace order ------------------------------------
+# REQ should log >> (send request) then << (recv reply).
+# REP should log << (recv request) then >> (send reply).
+
+echo "REQ/REP verbose trace:"
+U=$(ipc)
+REP_LOG="$TMPDIR/rep_trace.log"
+REQ_LOG="$TMPDIR/req_trace.log"
+$OMQ rep -b $U -e'it.first.upcase' -n 1 -vvv $T > /dev/null 2>"$REP_LOG" &
+echo 'hi' | $OMQ req -c $U -n 1 -vvv $T > /dev/null 2>"$REQ_LOG"
+wait
+
+# Strip log prefix ("omq: ") and size annotation ("(NB) ") to get
+# "<direction> <payload>" per traced message, in order.
+extract_trace() {
+  grep -oE 'omq: (>>|<<) \([^)]*\) .*' "$1" \
+    | sed -E 's/^omq: (>>|<<) \([^)]*\) /\1 /'
+}
+
+REQ_TRACE=$(extract_trace "$REQ_LOG" | tr '\n' '|' | sed 's/|$//')
+REP_TRACE=$(extract_trace "$REP_LOG" | tr '\n' '|' | sed 's/|$//')
+
+check "req -vvv trace (>> hi, << HI)" ">> hi|<< HI" "$REQ_TRACE"
+check "rep -vvv trace (<< hi, >> HI)" "<< hi|>> HI" "$REP_TRACE"
+
 # -- PUSH/PULL -------------------------------------------------------
 
 echo "PUSH/PULL:"
