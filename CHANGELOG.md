@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.15.3 — 2026-04-16
+
+### Changed
+
+- **Cache decoded `--data` input.** `read_inline_data` and
+  `ParallelWorker#compute_reply` now memoize the decoded result
+  instead of re-decoding the same literal on every iteration.
+
 ## Unreleased
 
 ### Added

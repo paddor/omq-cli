@@ -422,7 +422,7 @@ module OMQ
 
       def read_inline_data
         if config.data
-          @fmt.decode(config.data + "\n")
+          @inline_data ||= @fmt.decode(config.data + "\n")
         else
           @file_data ||= (config.file == "-" ? $stdin.read : File.read(config.file)).chomp
           @fmt.decode(@file_data + "\n")

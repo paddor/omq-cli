@@ -157,7 +157,7 @@ module OMQ
         elsif @config.echo
           parts
         elsif @config.data
-          @fmt.decode(@config.data + "\n")
+          @inline_data ||= @fmt.decode(@config.data + "\n")
         else
           parts
         end
