@@ -144,10 +144,10 @@ module OMQ
 
         -- Compression ----------------------------------------------
 
-          # ZMTP-Zstd is negotiated during the handshake.
-          # Recv sockets advertise it passively by default.
-          # Use -z on the sender to compress outgoing frames.
-          omq pull --bind tcp://:5557 &
+          # -z rewrites tcp:// endpoints to zstd+tcp:// (the dedicated
+          # compressed TCP transport from omq-zstd). Both peers must
+          # pass -z; non-TCP endpoints are unaffected.
+          omq pull --bind tcp://:5557 -z &
           echo "compressible data" | omq push --connect tcp://localhost:5557 -z
 
         -- CURVE Encryption -----------------------------------------

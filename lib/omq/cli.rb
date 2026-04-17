@@ -201,12 +201,12 @@ module OMQ
       config = build_config(argv)
 
       require "omq"
-      require "omq/rfc/clientserver"
-      require "omq/rfc/radiodish"
-      require "omq/rfc/scattergather"
-      require "omq/rfc/channel"
-      require "omq/rfc/p2p"
-      require "omq/rfc/zstd"
+      require "omq/client_server"
+      require "omq/radio_dish"
+      require "omq/scatter_gather"
+      require "omq/channel"
+      require "omq/peer"
+      require "omq/zstd"
       require "async"
       require "json"
       require "console"

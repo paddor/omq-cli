@@ -396,22 +396,45 @@ omq pub -c tcp://localhost:5556 -D "tick" -i 1 -n 10 -d 1
 omq pull -b tcp://:5557 -t 5
 ```
 
+## Limits
+
+| Flag | Effect |
+|------|--------|
+| `--recv-maxsz SIZE` | Max inbound message size (default `1M`; `0` = unlimited). Larger messages drop the connection. Accepts `4096`, `64K`, `1M`, `2G`. |
+| `--hwm N` | High water mark per socket (default 64; `0` = unbounded) |
+| `--sndbuf SIZE` / `--rcvbuf SIZE` | `SO_SNDBUF` / `SO_RCVBUF` kernel buffer sizes |
+
+The CLI defaults `--recv-maxsz` to `1 MiB` so that a misconfigured or
+malicious peer can't force unbounded memory allocation in a terminal
+session — note that the `omq` library itself defaults to unlimited.
+Bump it with `--recv-maxsz 64M` for large payloads, or disable it with
+`--recv-maxsz 0`. When combined with `-z`, this also caps the total
+**decompressed** size of all parts in a `zstd+tcp://` message.
+
 ## Compression
 
-Set `--compress` (`-z`) on either or both sides. The flag enables
-ZMTP-Zstd (provided by `omq-rfc-zstd`), a wire-protocol extension
-that negotiates Zstandard compression during the ZMTP handshake via
-an `X-Compression` READY metadata field. If both peers advertise it,
-each side compresses its outgoing frames; if only one side does, the
-connection stays plaintext (no error). The extension uses the
-auto-trained dictionary mode: the sender feeds the first messages
-into a dictionary trainer, ships the trained dictionary over a
-ZDICT command frame, then switches to dict-bound compression for
-the rest of the connection.
+`-z` enables Zstandard compression on the wire. It rewrites the
+endpoint's `tcp://` scheme to `zstd+tcp://`, the dedicated compressed
+TCP transport provided by [`omq-zstd`](https://github.com/paddor/omq-zstd).
+Both peers must pass `-z` (or otherwise opt into `zstd+tcp://`).
+
+| Flag | Effect |
+|------|--------|
+| `-z` | Compression at level **-3** (Zstd's fast strategy) |
+| `-Z` | Compression at level **3** (better ratio, more CPU) |
+| `--compress=LEVEL` | Custom level, e.g. `9`, `19`, `-1` |
+
+The sender auto-trains a dictionary from the first up-to-1000
+outgoing messages (or 100 KiB, whichever hits first), ships it inline
+to the receiver, and then switches to dictionary-bound
+compression for the rest of the connection.
+
+`-z` is a no-op for non-TCP endpoints (`ipc://`, `inproc://`); those
+stay unchanged.
 
 ```sh
+omq pull -b tcp://:5557 -z &
 omq push -c tcp://remote:5557 -z < data.txt
-omq pull -b tcp://:5557 -z
 ```
 
 ## Key generation

@@ -22,37 +22,23 @@ module OMQ
       # it entirely with --recv-maxsz 0.
       DEFAULT_RECV_MAXSZ = 1 << 20
 
-      # Socket types that never receive application data. These opt
-      # out of the default passive-compression behavior -- they would
-      # otherwise advertise a profile and wrap every outgoing frame in
-      # a 4-byte uncompressed sentinel for no benefit, since there's
-      # nothing to decompress in return.
-      PURE_SEND_TYPES = %w[push pub scatter radio].freeze
+      # Upgrades a +tcp://+ URL to +zstd+tcp://+ when compression is enabled.
+      # Returns the URL unchanged for non-TCP or when compression is off.
+      #
+      def self.compress_url(url, config)
+        return url unless config.compress
+        return url unless url.start_with?("tcp://")
+
+        url.sub("tcp://", "zstd+tcp://")
+      end
 
 
-      # Installs ZMTP-Zstd compression on +sock+ based on +type_name+
-      # and the explicit flags in +config+. Three outcomes:
+      # Returns bind/connect kwargs for compression (level:) when enabled.
       #
-      # * +config.compress+ is true --> active compression (auto-dict).
-      #   Outgoing frames are compressed; incoming are decoded.
-      # * +config.compress+ is false and +type_name+ can receive -->
-      #   passive compression (RFC Sec. 6.4). The socket advertises the
-      #   profile so an active peer can compress on the wire and we can
-      #   decode it, but we never compress our own outgoing frames.
-      # * +config.compress+ is false and +type_name+ is in
-      #   +PURE_SEND_TYPES+ --> no compression. Pure senders have no
-      #   incoming traffic to decompress, so passive mode is pure
-      #   overhead on outgoing.
-      #
-      # Callers pass +type_name+ explicitly (rather than reading it off
-      # +config+) so the pipe runners can install different modes on
-      # their push/pull ends of a single pipe.
-      def self.apply_compression(sock, config, type_name)
-        if config.compress
-          sock.compression = OMQ::Compression::Zstd.auto(level: config.compress_level || -3)
-        elsif !PURE_SEND_TYPES.include?(type_name)
-          sock.compression = OMQ::Compression::Zstd.auto(passive: true)
-        end
+      def self.compress_opts(config)
+        return {} unless config.compress
+
+        { level: config.compress_level || -3 }
       end
 
 
@@ -81,7 +67,6 @@ module OMQ
         apply_recv_maxsz(sock, config)
         sock.identity         = config.identity   if config.identity
         sock.router_mandatory = true if config.type_name == "router"
-        apply_compression(sock, config, config.type_name)
         sock
       end
 
@@ -101,12 +86,15 @@ module OMQ
       # +verbose+ gates logging (>= 1), +timestamps+ controls prefix.
       #
       def self.attach(sock, config, verbose: 0, timestamps: nil)
+        opts = compress_opts(config)
+
         config.binds.each do |url|
-          sock.bind(url)
-          CLI::Term.write_attach(:bind, sock.last_endpoint, timestamps) if verbose >= 1
+          uri = sock.bind(compress_url(url, config), **opts)
+          CLI::Term.write_attach(:bind, uri.to_s, timestamps) if verbose >= 1
         end
+
         config.connects.each do |url|
-          sock.connect(url)
+          sock.connect(compress_url(url, config), **opts)
           CLI::Term.write_attach(:connect, url, timestamps) if verbose >= 1
         end
       end
@@ -116,13 +104,17 @@ module OMQ
       # Used by PipeRunner, which works with structured endpoint lists.
       # +verbose+ gates logging (>= 1), +timestamps+ controls prefix.
       #
-      def self.attach_endpoints(sock, endpoints, verbose: 0, timestamps: nil)
+      def self.attach_endpoints(sock, endpoints, config: nil, verbose: 0, timestamps: nil)
+        opts = config ? compress_opts(config) : {}
+
         endpoints.each do |ep|
+          url = config ? compress_url(ep.url, config) : ep.url
+
           if ep.bind?
-            sock.bind(ep.url)
-            CLI::Term.write_attach(:bind, sock.last_endpoint, timestamps) if verbose >= 1
+            uri = sock.bind(url, **opts)
+            CLI::Term.write_attach(:bind, uri.to_s, timestamps) if verbose >= 1
           else
-            sock.connect(ep.url)
+            sock.connect(url, **opts)
             CLI::Term.write_attach(:connect, ep.url, timestamps) if verbose >= 1
           end
         end

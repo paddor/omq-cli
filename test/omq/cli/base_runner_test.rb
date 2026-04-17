@@ -37,8 +37,7 @@ describe "wait_for_peer grace period with range reconnect_ivl" do
     Sync do
       push = OMQ::PUSH.new(linger: 0)
       push.reconnect_interval = 0.05..1.0
-      push.bind("tcp://127.0.0.1:0")
-      port = push.last_tcp_port
+      port = push.bind("tcp://127.0.0.1:0").port
 
       pull = OMQ::PULL.new
       pull.connect("tcp://127.0.0.1:#{port}")

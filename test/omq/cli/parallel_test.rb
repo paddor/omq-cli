@@ -66,32 +66,37 @@ describe "pull -P parallel execution" do
   end
 
   it "round-trips wire-compressed messages through parallel workers" do
-    url    = ipc_url("pull-parallel-z")
     n_msgs = 10
 
-    cfg = make_config(
-      type_name: "pull",
-      endpoints: [OMQ::CLI::Endpoint.new(url, false)],
-      parallel:  2,
-      compress:  true,
-      timeout:   0.15,
-      count:     n_msgs,
-    )
-
+    # PUSH binds zstd+tcp://, PULL runner connects via -z upgrade.
     captured = StringIO.new
+    push_ep  = nil
 
     io_thread = Thread.new do
       Sync do
         src = OMQ::PUSH.new
-        src.linger      = 1
-        src.compression = OMQ::Compression::Zstd.auto
-        src.bind(url)
+        src.linger = 1
+        push_ep = src.bind("zstd+tcp://127.0.0.1:0").to_s
         src.peer_connected.wait
         n_msgs.times { |i| src.send(["msg-#{i}"]) }
       ensure
         src&.close
       end
     end
+
+    sleep 0.02 until push_ep
+
+    # Give the runner a tcp:// URL — the -z flag upgrades it to zstd+tcp://.
+    tcp_ep = push_ep.sub("zstd+tcp://", "tcp://")
+
+    cfg = make_config(
+      type_name: "pull",
+      endpoints: [OMQ::CLI::Endpoint.new(tcp_ep, false)],
+      parallel:  2,
+      compress:  true,
+      timeout:   0.15,
+      count:     n_msgs,
+    )
 
     runner_thread = Thread.new do
       orig_stdout = $stdout

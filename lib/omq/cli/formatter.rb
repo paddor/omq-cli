@@ -3,9 +3,7 @@
 module OMQ
   module CLI
     # Handles encoding/decoding messages in the configured format.
-    # Compression is handled below the application API by ZMTP-Zstd
-    # (omq-rfc-zstd) once enabled via +socket.compression=+; the
-    # formatter sees plaintext frames in both directions.
+    #
     class Formatter
       # @param format [Symbol] wire format (:ascii, :quoted, :raw, :jsonl, :msgpack, :marshal)
       def initialize(format)
@@ -93,7 +91,7 @@ module OMQ
 
 
       # Formats message parts for human-readable preview (logging).
-      # When +wire_size+ is given (ZMTP-Zstd negotiated), the header
+      # When +wire_size+ is given (`omq-zstd`), the header
       # also shows the compressed on-the-wire size: "(29B wire=12B)".
       # Accepts either wire-side Array<String> (monitor events) or
       # post-decode app parts that may contain non-String objects
@@ -147,7 +145,9 @@ module OMQ
 
       def self.frames_preview(parts, format:, wire_size:)
         nparts = parts.size
-        shown  = parts.first(3).map { |p| preview_frame(p) }
+        # Budget per frame: fewer parts → more room for each preview.
+        limit  = nparts <= 2 ? 40 : 12
+        shown  = parts.first(3).map { |p| preview_frame(p, limit: limit) }
         tail   = nparts > 3 ? "|…" : ""
         total  = parts.all?(String) ? parts.sum { |p| p.bytesize } : nil
         size   = if wire_size && total
@@ -165,16 +165,17 @@ module OMQ
 
 
       # Renders one frame or decoded object for {Formatter.preview}.
-      # Strings are sanitized byte-wise (first 12 bytes); non-String
+      # Strings are sanitized byte-wise (first +limit+ bytes); non-String
       # objects fall back to #inspect (always single-line) truncated
-      # at 24 bytes.
+      # at +limit+ bytes.
       #
       # @param part [String, Object]
+      # @param limit [Integer] max bytes to show (default 12)
       # @return [String]
-      def self.preview_frame(part)
+      def self.preview_frame(part, limit: 12)
         unless part.is_a?(String)
           s = part.inspect
-          return s.bytesize > 24 ? "#{s.byteslice(0, 24)}…" : s
+          return s.bytesize > limit ? "#{s.byteslice(0, limit)}…" : s
         end
 
         bytes = part.b
@@ -184,12 +185,12 @@ module OMQ
         # wire frame is an empty delimiter.
         return "''" if bytes.empty?
 
-        sample    = bytes[0, 12]
+        sample    = bytes[0, limit]
         printable = sample.count("\x20-\x7e")
 
         if printable < sample.bytesize / 2
           "[#{bytes.bytesize}B]"
-        elsif bytes.bytesize > 12
+        elsif bytes.bytesize > limit
           "#{sanitize(sample)}…"
         else
           sanitize(sample)

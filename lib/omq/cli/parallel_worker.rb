@@ -51,9 +51,8 @@ module OMQ
         @sock = @config.ffi ? OMQ.const_get(@socket_sym).new(backend: :ffi) : OMQ.const_get(@socket_sym).new
         OMQ::CLI::SocketSetup.apply_options(@sock, @config)
         OMQ::CLI::SocketSetup.apply_recv_maxsz(@sock, @config)
-        OMQ::CLI::SocketSetup.apply_compression(@sock, @config, @config.type_name)
         @sock.identity = @config.identity if @config.identity
-        OMQ::CLI::SocketSetup.attach_endpoints(@sock, @endpoints, verbose: 0)
+        OMQ::CLI::SocketSetup.attach_endpoints(@sock, @endpoints, config: @config, verbose: 0)
       end
 
 

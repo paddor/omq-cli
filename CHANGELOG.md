@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **Compression: switch from `OMQ::Compression::Zstd` helpers to the
+  `zstd+tcp://` transport.** `-z` now upgrades `tcp://` URLs to
+  `zstd+tcp://` and passes compression kwargs (`level:`) at bind /
+  connect time. Pipe runners and parallel workers take `config:` to
+  thread the flag through. Removes the passive/active distinction
+  and the pure-send opt-out list — the transport handles framing.
+- **`SocketSetup.attach` / `#attach_endpoints` use URI return values
+  from `Socket#bind`.** Drops reliance on the dropped
+  `Socket#last_endpoint` accessor (omq 0.12 change). Tests capture
+  the resolved URI from `#bind` directly.
+- **Dependencies consolidated.** Drops the five `omq-rfc-*` socket-type
+  gems (`clientserver`, `radiodish`, `scattergather`, `channel`, `p2p`)
+  — those socket types are now bundled with `omq` itself and opted
+  into via `require "omq/<name>"`. Renames `omq-rfc-zstd` → `omq-zstd`
+  and switches the require from `omq/rfc/zstd` to `omq/zstd`. Bumps
+  `omq` to `~> 0.23` and `omq-ffi` to `~> 0.3`.
+
+### Added
+
+- **Formatter preview: per-frame byte budget scales with part count.**
+  Single-part messages show 40 bytes; 2-part show 40 each; 3+ parts
+  show 12 bytes per frame (the previous fixed limit).
+
 ## 0.15.3 — 2026-04-16
 
 ### Changed
@@ -7,8 +34,6 @@
 - **Cache decoded `--data` input.** `read_inline_data` and
   `ParallelWorker#compute_reply` now memoize the decoded result
   instead of re-decoding the same literal on every iteration.
-
-## Unreleased
 
 ### Added
 

@@ -84,21 +84,31 @@ module OMQ
 
       def build_pull_push(in_eps, out_eps)
         kwargs = config.ffi ? { backend: :ffi } : {}
-        pull = OMQ::PULL.new(**kwargs)
-        push = OMQ::PUSH.new(**kwargs)
-        SocketSetup.apply_options(pull, config)
-        SocketSetup.apply_options(push, config)
-        SocketSetup.apply_recv_maxsz(pull, config)
-        SocketSetup.apply_compression(pull, config, "pull")
-        SocketSetup.apply_compression(push, config, "push")
-        SocketSetup.attach_endpoints(pull, in_eps, verbose: config.verbose, timestamps: config.timestamps)
-        SocketSetup.attach_endpoints(push, out_eps, verbose: config.verbose, timestamps: config.timestamps)
+
+        pull = OMQ::PULL.new(**kwargs).tap do |sock|
+          SocketSetup.apply_options(sock, config)
+          SocketSetup.apply_recv_maxsz(sock, config)
+          SocketSetup.attach_endpoints sock, in_eps,
+            config:     config,
+            verbose:    config.verbose,
+            timestamps: config.timestamps
+        end
+
+        push = OMQ::PUSH.new(**kwargs).tap do |sock|
+          SocketSetup.apply_options(sock, config)
+          SocketSetup.attach_endpoints sock, out_eps,
+            config:     config,
+            verbose:    config.verbose,
+            timestamps: config.timestamps
+        end
+
         [pull, push]
       end
 
 
       def setup_sequential_transient(task)
         return unless config.transient
+
         task.async do
           @pull.all_peers_gone.wait
           @pull.reconnect_enabled = false
@@ -110,21 +120,27 @@ module OMQ
       def sequential_message_loop(fan_out: false)
         n = config.count
         i = 0
+
         loop do
-          parts = @pull.receive
-          break if parts.nil?
+          parts = @pull.receive or break
           parts = eval_recv_expr(parts)
+
           if parts && !parts.empty?
             @push.send(parts)
           end
+
           # Yield after send so send-pump fibers can drain the queue
           # before the next message is enqueued. Without this, one pump
           # monopolizes the shared queue via drain_send_queue_capped when
           # messages arrive in bursts (recv prefetch). Only needed for
           # multi-output pipes; single-output has no fairness concern.
           Async::Task.current.yield if fan_out
+
           i += 1
-          break if n && n > 0 && i >= n
+
+          if n && n > 0 && i >= n
+            break
+          end
         end
       end
 
@@ -135,22 +151,25 @@ module OMQ
       def run_parallel(task)
         set_pipe_process_title
         OMQ.freeze_for_ractors!
-        in_eps, out_eps = resolve_endpoints
-        in_eps  = RactorHelpers.preresolve_tcp(in_eps)
-        out_eps = RactorHelpers.preresolve_tcp(out_eps)
+
+        in_eps, out_eps      = resolve_endpoints
+        in_eps               = RactorHelpers.preresolve_tcp(in_eps)
+        out_eps              = RactorHelpers.preresolve_tcp(out_eps)
         log_port, log_thread = RactorHelpers.start_log_consumer
-        error_port = Ractor::Port.new
-        error_thread = Thread.new(error_port) do |p|
+        error_port           = Ractor::Port.new
+        error_thread         = Thread.new(error_port) do |p|
           msg = p.receive
           abort "omq: #{msg}" unless msg.equal?(RactorHelpers::SHUTDOWN)
         rescue Ractor::ClosedError
           # port closed, no error
         end
+
         workers = config.parallel.times.map do
           ::Ractor.new(config, in_eps, out_eps, log_port, error_port) do |cfg, ins, outs, lport, eport|
             PipeWorker.new(cfg, ins, outs, lport, eport).call
           end
         end
+
         workers.each do |w|
           w.join
         rescue ::Ractor::RemoteError => e
@@ -173,6 +192,7 @@ module OMQ
         title.concat(in_eps.map(&:url))
         title << "->"
         title.concat(out_eps.map(&:url))
+
         Process.setproctitle(title.join(" "))
       end
 
@@ -207,6 +227,7 @@ module OMQ
           end
         end
       end
+
     end
   end
 end

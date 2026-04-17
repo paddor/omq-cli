@@ -241,7 +241,18 @@ describe OMQ::CLI::Formatter do
 
     it "truncates long printable frames" do
       preview = OMQ::CLI::Formatter.preview(["abcdefghijklmnop"])
-      assert_equal "(16B) abcdefghijkl…", preview
+      # Single-part messages get a 40-byte preview limit
+      assert_equal "(16B) abcdefghijklmnop", preview
+    end
+
+    it "truncates single-part frames beyond 40 bytes" do
+      preview = OMQ::CLI::Formatter.preview(["a" * 50])
+      assert_equal "(50B) #{"a" * 40}…", preview
+    end
+
+    it "truncates multipart frames at 12 bytes" do
+      preview = OMQ::CLI::Formatter.preview(["abcdefghijklmnop", "x", "y"])
+      assert_equal "(18B 3F) abcdefghijkl…|x|y", preview
     end
 
     it "shows byte length for binary frames" do

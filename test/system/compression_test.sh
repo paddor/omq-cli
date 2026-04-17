@@ -1,40 +1,64 @@
 #!/bin/sh
-# Per-frame zstd compression (-z): large and small payload round-trips
-# plus a wire-size trace check that a 1000-byte repeating payload
-# compresses to significantly fewer bytes on the wire.
+# Per-frame zstd compression (-z): round-trips over zstd+tcp:// and a
+# wire-size trace check that a repeating payload compresses to
+# significantly fewer bytes on the wire.
 
 . "$(dirname "$0")/support.sh"
 
-echo "Compression:"
-U=$(ipc)
+# Helper: extract port from "bound to zstd+tcp://host:PORT" in a log file.
+# Polls until the line appears (up to ~2 seconds).
+extract_port() {
+  _log="$1"
+  _i=0
+  while [ "$_i" -lt 20 ]; do
+    _port=$(grep -oE 'bound to [^ ]+' "$_log" | head -1 | grep -oE '[0-9]+$' || true)
+    if [ -n "$_port" ]; then
+      echo "$_port"
+      return 0
+    fi
+    sleep 0.1
+    _i=$((_i + 1))
+  done
+  echo ""
+}
+
+# -- Round-trip: large payload ----------------------------------------
+
+echo "Compression (large):"
 PAYLOAD=$(ruby -e "puts 'x' * 200")
-$OMQ pull -b $U -n 1 -z $T > $TMPDIR/compress_out.txt 2>>"$STDERR_LOG" &
-echo "$PAYLOAD" | $OMQ push -c $U -z $T 2>>"$STDERR_LOG"
-wait
-check "compression round-trip" "$PAYLOAD" "$(cat $TMPDIR/compress_out.txt)"
+$OMQ rep -b tcp://127.0.0.1:0 -n 1 --echo -z -v $T > $TMPDIR/compress_out.txt 2>$TMPDIR/compress_rep.log &
+REP_PID=$!
+PORT=$(extract_port "$TMPDIR/compress_rep.log")
+echo "$PAYLOAD" | $OMQ req -c tcp://127.0.0.1:$PORT -n 1 -z $T > $TMPDIR/compress_req_out.txt 2>>"$STDERR_LOG"
+wait $REP_PID 2>/dev/null
+check "compression round-trip" "$PAYLOAD" "$(cat $TMPDIR/compress_req_out.txt)"
+
+# -- Round-trip: small payload ----------------------------------------
 
 echo "Compression (small):"
-U=$(ipc)
-$OMQ pull -b $U -n 1 -z $T > $TMPDIR/compress_small_out.txt 2>>"$STDERR_LOG" &
-echo 'tiny' | $OMQ push -c $U -z $T 2>>"$STDERR_LOG"
-wait
+$OMQ rep -b tcp://127.0.0.1:0 -n 1 --echo -z -v $T > /dev/null 2>$TMPDIR/compress_small_rep.log &
+REP_PID=$!
+PORT=$(extract_port "$TMPDIR/compress_small_rep.log")
+echo 'tiny' | $OMQ req -c tcp://127.0.0.1:$PORT -n 1 -z $T > $TMPDIR/compress_small_out.txt 2>>"$STDERR_LOG"
+wait $REP_PID 2>/dev/null
 check "compression round-trip (small)" "tiny" "$(cat $TMPDIR/compress_small_out.txt)"
 
-# 1000 Zs should compress to far less than 1000 bytes; the pull side
-# must log wire=NB with N < 1000.
+# -- Wire size trace: 2000 bytes should compress, receiver logs wire= -
+
 echo "Compression wire size trace:"
-U=$(ipc)
-PAYLOAD=$(ruby -e "print 'Z' * 1000")
-PULL_LOG="$TMPDIR/wire_pull.log"
-$OMQ pull -b $U -n 1 -z -vvv $T > $TMPDIR/wire_out.txt 2>"$PULL_LOG" &
-printf '%s' "$PAYLOAD" | $OMQ push -c $U -z $T 2>>"$STDERR_LOG"
-wait
+PAYLOAD=$(ruby -e "print 'Z' * 2000")
+REP_LOG="$TMPDIR/wire_rep.log"
+$OMQ rep -b tcp://127.0.0.1:0 -n 1 --echo -z -vvv $T > /dev/null 2>"$REP_LOG" &
+REP_PID=$!
+PORT=$(extract_port "$REP_LOG")
+printf '%s' "$PAYLOAD" | $OMQ req -c tcp://127.0.0.1:$PORT -n 1 -z $T > /dev/null 2>>"$STDERR_LOG"
+wait $REP_PID 2>/dev/null
 
-PULL_WIRE=$(grep -oE 'wire=[0-9]+B' "$PULL_LOG" | head -1 | grep -oE '[0-9]+' || echo "")
+REP_WIRE=$(grep -oE 'wire=[0-9]+B' "$REP_LOG" | head -1 | grep -oE '[0-9]+' || echo "")
 
-if [ -n "$PULL_WIRE" ] && [ "$PULL_WIRE" -lt 1000 ]; then
-  pass "pull -vvv logs wire=${PULL_WIRE}B < 1000"
+if [ -n "$REP_WIRE" ] && [ "$REP_WIRE" -lt 2000 ]; then
+  pass "rep -vvvz logs wire=${REP_WIRE}B < 2000"
 else
-  fail "pull -vvv wire size" "<1000" "$PULL_WIRE"
-  cat "$PULL_LOG" >&2
+  fail "rep -vvvz wire size" "<2000" "${REP_WIRE:-<missing>}"
+  cat "$REP_LOG" >&2
 fi
