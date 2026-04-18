@@ -24,8 +24,8 @@ Gem::Specification.new do |s|
   s.bindir     = "exe"
   s.executables = ["omq"]
 
-  s.add_dependency "omq",      "~> 0.23"
-  s.add_dependency "omq-ffi",  "~> 0.3"
+  s.add_dependency "omq",      "~> 0.24"
+  s.add_dependency "omq-ffi",  "~> 0.3", ">= 0.3.1"
   s.add_dependency "omq-zstd", "~> 0.4"
   s.add_dependency "msgpack"
   s.add_dependency "rbnacl",   "~> 7.0"
