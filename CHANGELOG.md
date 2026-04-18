@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-### Changed
+## 0.16.0 — 2026-04-18
 
 - **Compression: switch from `OMQ::Compression::Zstd` helpers to the
   `zstd+tcp://` transport.** `-z` now upgrades `tcp://` URLs to
